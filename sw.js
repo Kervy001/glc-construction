@@ -1,7 +1,9 @@
 // GLC Construction HT — Service Worker
 // Basic app-shell caching so the tool keeps working with a weak/no connection on chantye.
+// v2: network-first for same-origin files so new deployments show up immediately;
+// cache is only used as an offline fallback, not as the default source.
 
-var CACHE_NAME = 'glc-construction-ht-v1';
+var CACHE_NAME = 'glc-construction-ht-v2';
 var APP_SHELL = [
   './',
   './index.html',
@@ -26,12 +28,12 @@ self.addEventListener('activate', function(event){
         names.filter(function(n){ return n !== CACHE_NAME; })
              .map(function(n){ return caches.delete(n); })
       );
-    })
+    }).then(function(){ return self.clients.claim(); })
   );
-  self.clients.claim();
 });
 
-// Cache-first for app shell files, network-first (with cache fallback) for everything else.
+// Network-first for same-origin files (always get the latest deploy when online),
+// falling back to cache only when offline. Cache is refreshed on every successful fetch.
 self.addEventListener('fetch', function(event){
   var req = event.request;
   if(req.method !== 'GET') return;
@@ -41,13 +43,11 @@ self.addEventListener('fetch', function(event){
 
   if(isSameOrigin){
     event.respondWith(
-      caches.match(req).then(function(cached){
-        return cached || fetch(req).then(function(res){
-          var resClone = res.clone();
-          caches.open(CACHE_NAME).then(function(cache){ cache.put(req, resClone); });
-          return res;
-        }).catch(function(){ return cached; });
-      })
+      fetch(req).then(function(res){
+        var resClone = res.clone();
+        caches.open(CACHE_NAME).then(function(cache){ cache.put(req, resClone); });
+        return res;
+      }).catch(function(){ return caches.match(req); })
     );
   } else {
     // Fonts / external CDN / API calls: try network, don't break offline if it fails.
