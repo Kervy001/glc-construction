@@ -410,7 +410,7 @@ var BASE_PHASES = [
 
 function freshPhases(){
   return BASE_PHASES.map(function(ph){
-    return Object.assign({}, ph, {items: ph.items.map(function(it){ return Object.assign({}, it, {id: nid()}); })});
+    return Object.assign({}, ph, {avansman:0, items: ph.items.map(function(it){ return Object.assign({}, it, {id: nid()}); })});
   });
 }
 function nextPhaseNum(phases){
@@ -432,7 +432,7 @@ function freshProject(){
 }
 
 // ---------------- state ----------------
-var S = { view:'list', index:null, current:null, active:0, showSummary:false, showCalc:false, showAddPhase:false, showSettings:false, showAI:false, saving:false, company:null, notifs:null, listFilter:'tout', user:null, authView:'login', authBusy:false, authError:'', authInfo:'', cloudStatus:'', authEmail:'', authPassword:'', signupType:'particulier', signupName:'', signupPhone:'', clientInfoOpen:true, notifOpen:false, authChecked:false, lang:'ht' };
+var S = { view:'list', index:null, current:null, active:0, showSummary:false, showCalc:false, showAddPhase:false, showSettings:false, showAI:false, saving:false, company:null, notifs:null, listFilter:'tout', user:null, authView:'login', authBusy:false, authError:'', authInfo:'', cloudStatus:'', authEmail:'', authPassword:'', signupType:'particulier', signupName:'', signupPhone:'', clientInfoOpen:true, progressOpen:true, notifOpen:false, authChecked:false, lang:'ht' };
 function updAuthField(f,v){ S['auth'+f]=v; }
 function setLang(lang){
   S.lang = lang;
@@ -651,11 +651,15 @@ async function persist(proj){
   S.saving = true; updateSavingIndicator();
   try{
     await window.storage.set('devis:data:'+proj.id, JSON.stringify(proj));
-    var sub = totalsFor(proj.phases).reduce(function(a,b){return a+b;},0);
+    var phaseTotals = totalsFor(proj.phases);
+    var sub = phaseTotals.reduce(function(a,b){return a+b;},0);
     var fin = sub * (1 + (Number(proj.majorasyon)||0)/100);
+    var weighted = 0;
+    proj.phases.forEach(function(ph,i){ weighted += (Number(ph.avansman)||0)*phaseTotals[i]; });
+    var avansman = sub>0 ? Math.round(weighted/sub) : 0;
     var list = await loadIndex();
     var i = list.findIndex(function(p){ return p.id===proj.id; });
-    var entry = { id:proj.id, projet: proj.projet || proj.kliyan || 'Pwojè san non', kliyan: proj.kliyan, devisNo: proj.devisNo, updatedAt: Date.now(), totalHTG: fin, statut: proj.statut||'an_kou', typeProjet: proj.typeProjet||'', dateDebi: proj.dateDebi||'', dateFen: proj.dateFen||'' };
+    var entry = { id:proj.id, projet: proj.projet || proj.kliyan || 'Pwojè san non', kliyan: proj.kliyan, devisNo: proj.devisNo, updatedAt: Date.now(), totalHTG: fin, statut: proj.statut||'an_kou', typeProjet: proj.typeProjet||'', dateDebi: proj.dateDebi||'', dateFen: proj.dateFen||'', avansman: avansman };
     if(i>=0) list[i]=entry; else list.unshift(entry);
     await saveIndex(list);
     S.index = list;
@@ -765,6 +769,7 @@ function renderList(){
         + '</div>'
         + '<p class="mono" style="font-size:10px;color:var(--muted);margin:2px 0 0;">'+esc(p.devisNo||'')+' · '+new Date(p.updatedAt).toLocaleDateString('fr-HT')+' · '+fmt(p.totalHTG)+' HTG</p>'
         + (p.typeProjet ? '<p class="mono" style="font-size:9px;color:var(--muted);margin:2px 0 0;">'+esc(p.typeProjet)+'</p>' : '')
+        + (typeof p.avansman==='number' ? ('<div style="display:flex;align-items:center;gap:6px;margin-top:5px;"><div style="flex:1;height:4px;background:rgba(28,42,56,.08);border-radius:999px;overflow:hidden;"><div style="height:100%;width:'+p.avansman+'%;background:var(--accent);border-radius:999px;"></div></div><span class="mono" style="font-size:8px;color:var(--muted);">'+p.avansman+'%</span></div>') : '')
         + '</div>'
         + '<button onclick="event.stopPropagation();duplicateProject(\''+p.id+'\')" style="color:rgba(28,42,56,.35);padding:6px;" title="Dupliye">'+copyIcon()+'</button>'
         + '<button onclick="event.stopPropagation();deleteProject(\''+p.id+'\')" style="color:rgba(28,42,56,.3);padding:6px;" title="Efase">'+trashIcon()+'</button>'
@@ -825,6 +830,7 @@ async function openProject(id){
       if(S.current.dateDebi===undefined) S.current.dateDebi='';
       if(S.current.dateFen===undefined) S.current.dateFen='';
       if(S.current.obsèvasyon===undefined) S.current.obsèvasyon='';
+      (S.current.phases||[]).forEach(function(ph){ if(ph.avansman===undefined) ph.avansman=0; });
       S.active = 0; S.view='editor'; render();
     }
   }catch(e){}
@@ -1065,6 +1071,7 @@ function renderEditor(){
 
   + '<div class="no-print wrap" style="padding:0 12px;">'
     + clientInfoPanel(p)
+    + progressPanel(p, totals)
   + '</div>'
 
   + '<nav class="no-print scrollx" style="position:sticky;top:0;z-index:10;background:rgba(239,234,224,.95);backdrop-filter:blur(6px);padding:10px 12px;border-bottom:1px solid var(--line);">'+chips+'</nav>'
@@ -1141,6 +1148,54 @@ function clientInfoPanel(p){
 }
 function fieldHtml(label, inputHtml){ return '<div class="field"><label>'+esc(label)+'</label>'+inputHtml+'</div>'; }
 
+function progressPanel(p, totals){
+  var open = !!S.progressOpen;
+  var sumCost = totals.reduce(function(a,b){return a+b;},0);
+  var weighted = 0;
+  p.phases.forEach(function(ph,i){ weighted += (Number(ph.avansman)||0)*totals[i]; });
+  var overall = sumCost>0 ? Math.round(weighted/sumCost) : 0;
+
+  var isLate = false, daysLate = 0;
+  if(p.dateFen && overall<100){
+    var end = new Date(p.dateFen+'T00:00:00');
+    var today = new Date(); today.setHours(0,0,0,0);
+    if(!isNaN(end.getTime()) && today>end){
+      isLate = true;
+      daysLate = Math.round((today-end)/(1000*60*60*24));
+    }
+  }
+
+  var phaseRows = p.phases.map(function(ph,i){
+    if(ph.items.length===0) return '';
+    var av = Number(ph.avansman)||0;
+    return '<div style="margin-top:10px;">'
+      + '<div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:4px;"><span>'+ph.n+'. '+esc(ph.label)+'</span><span class="mono" id="avansman-val-'+i+'" style="font-weight:600;">'+av+'%</span></div>'
+      + '<div style="background:rgba(28,42,56,.08);border-radius:999px;height:6px;overflow:hidden;margin-bottom:6px;"><div id="avansman-bar-'+i+'" style="height:100%;width:'+av+'%;background:var(--accent);border-radius:999px;"></div></div>'
+      + '<input type="range" min="0" max="100" step="5" value="'+av+'" oninput="updPhaseAvansman('+i+',this.value)" style="width:100%;">'
+      + '</div>';
+  }).join('');
+
+  return '<div class="card" style="margin-top:12px;">'
+    + '<div onclick="S.progressOpen=!S.progressOpen;render();" style="display:flex;justify-content:space-between;align-items:center;cursor:pointer;">'
+      + '<span style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.03em;color:var(--muted);">Swivi Chantye</span>'
+      + '<span style="color:var(--muted);transform:rotate('+(open?'180':'0')+'deg);transition:transform .15s;">'+chevronIcon()+'</span>'
+    + '</div>'
+    + (!open ? '' : (
+      '<div style="margin-top:12px;">'
+      + '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">'
+        + '<span style="font-size:12px;font-weight:600;">Avansman Jeneral</span>'
+        + '<span class="disp" id="overallProgressVal" style="font-size:18px;font-weight:700;color:var(--accent);">'+overall+'%</span>'
+      + '</div>'
+      + '<div style="background:rgba(28,42,56,.08);border-radius:999px;height:10px;overflow:hidden;">'
+        + '<div id="overallProgressBar" style="height:100%;width:'+overall+'%;background:linear-gradient(90deg,var(--accent),#F0895C);border-radius:999px;transition:width .2s;"></div>'
+      + '</div>'
+      + (isLate ? '<p style="font-size:11px;color:#C0392B;margin:8px 0 0;font-weight:600;">⚠ An reta pa '+daysLate+' jou (dat fen prevwa: '+esc(p.dateFen)+')</p>' : '')
+      + (phaseRows ? '<p class="mono" style="font-size:9px;text-transform:uppercase;color:var(--muted);margin:16px 0 0;border-top:1px solid var(--line);padding-top:10px;">Pa Faz</p>'+phaseRows : '<p style="font-size:12px;color:var(--muted);margin:12px 0 0;">Ajoute atik nan yon faz pou kòmanse swiv avansman li.</p>')
+      + '</div>'
+    ))
+    + '</div>';
+}
+
 // ---------------- item / phase mutation ----------------
 function updItem(id, field, value){
   var ph = S.current.phases[S.active];
@@ -1164,6 +1219,24 @@ function recalcHeaderTotals(){
   var footEl = document.getElementById('footer-total');
   if(footEl) footEl.innerHTML = fmt(finalHTG)+' <span style="font-size:12px;">HTG</span>';
 }
+function updPhaseAvansman(idx, value){
+  var v = Math.max(0, Math.min(100, Number(value)||0));
+  S.current.phases[idx].avansman = v;
+  var valEl = document.getElementById('avansman-val-'+idx);
+  if(valEl) valEl.textContent = v+'%';
+  var barEl = document.getElementById('avansman-bar-'+idx);
+  if(barEl) barEl.style.width = v+'%';
+  var totals = totalsFor(S.current.phases);
+  var sumCost = totals.reduce(function(a,b){return a+b;},0);
+  var weighted = 0;
+  S.current.phases.forEach(function(ph,i){ weighted += (Number(ph.avansman)||0)*totals[i]; });
+  var overall = sumCost>0 ? Math.round(weighted/sumCost) : 0;
+  var ovVal = document.getElementById('overallProgressVal');
+  if(ovVal) ovVal.textContent = overall+'%';
+  var ovBar = document.getElementById('overallProgressBar');
+  if(ovBar) ovBar.style.width = overall+'%';
+  scheduleSave();
+}
 function addItem(seed){
   var ph = S.current.phases[S.active];
   ph.items.push(Object.assign({id:nid(),d:'',u:'m²',q:0,pm:0,pmo:0,tip:'achte',priceMode:'inite'}, seed||{}));
@@ -1186,7 +1259,7 @@ function confirmAddPhase(){
   var input = document.getElementById('newPhaseName');
   var name = (input && input.value.trim()) || 'Nouvo Etap';
   var n = nextPhaseNum(S.current.phases);
-  S.current.phases.push({key:'custom'+n, n:n, label:name, items:[]});
+  S.current.phases.push({key:'custom'+n, n:n, label:name, items:[], avansman:0});
   S.active = S.current.phases.length-1;
   S.showAddPhase = false;
   render(); scheduleSave();
