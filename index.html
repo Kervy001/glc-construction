@@ -280,7 +280,14 @@ var I18N = {
     cloud_konekte:'Konekte', cloud_kreyeKont:'Kreye Kont', cloud_imel:'Imèl', cloud_modpas:'Modpas',
     cloud_apKreye:'Ap kreye kont...', cloud_apKonekte:'Ap konekte...', cloud_bliyeModpas:'Bliye modpas?',
     cloud_oswa:'OSWA', cloud_google:'Kontinye ak Google', cloud_senkwonize:'Senkwonize', cloud_dekonekte:'Dekonekte',
-    auth_verifying:'Ap verifye sesyon ou...', auth_offline:'Nou poko ka rive jwenn sèvis koneksyon an. Verifye entènèt ou epi tanpri eseye ankò nan kèk segond.'
+    auth_verifying:'Ap verifye sesyon ou...', auth_offline:'Nou poko ka rive jwenn sèvis koneksyon an. Verifye entènèt ou epi tanpri eseye ankò nan kèk segond.',
+    pv_devisNo:'Devis N°', pv_dat:'Dat', pv_valab:'Valab', pv_jou:'jou', pv_pwoje:'Pwojè', pv_adresChantye:'Adrès chantye',
+    pv_kliyan:'Kliyan', pv_telefon:'Telefòn', pv_materyèl:'Materyèl / Travay', pv_unite:'Unite', pv_kantite:'Kantite',
+    pv_priInite:'Pri Inite', pv_total:'Total (HTG)', pv_menDev:"Men-d'èv", pv_fiks:'Fiks', pv_lokasyon:'Lokasyon',
+    pv_soutotal:"Sou-total (Materyo + Men-d'èv)", pv_majorasyon:'Majorasyon', pv_totalJeneral:'TOTAL JENERAL',
+    pv_echeansye:'Echeansye Peman', pv_kondisyon:'Kondisyon Jeneral', pv_siyatiKontrakte:'Siyati & Cachet Kontraktè',
+    pv_siyatiKliyan:'Siyati Kliyan', pv_nimewoDokiman:'Nimewo Dokiman', pv_dokimanJenere:'Dokiman jenere pou',
+    pv_eskane:'Eskane kòd QR la pou verifye otantisite devis sa a.', pv_taginKaye:'Kaye Metre & Devis Konstriksyon'
   },
   fr: {
     tagline:'Métré & Devis', dashboard_intro:'Tableau de bord de vos projets.',
@@ -302,7 +309,14 @@ var I18N = {
     cloud_konekte:'Se Connecter', cloud_kreyeKont:'Créer un Compte', cloud_imel:'E-mail', cloud_modpas:'Mot de passe',
     cloud_apKreye:'Création en cours...', cloud_apKonekte:'Connexion en cours...', cloud_bliyeModpas:'Mot de passe oublié ?',
     cloud_oswa:'OU', cloud_google:'Continuer avec Google', cloud_senkwonize:'Synchroniser', cloud_dekonekte:'Déconnexion',
-    auth_verifying:'Vérification de votre session...', auth_offline:"Impossible de joindre le service de connexion. Vérifiez votre connexion internet et réessayez dans quelques secondes."
+    auth_verifying:'Vérification de votre session...', auth_offline:"Impossible de joindre le service de connexion. Vérifiez votre connexion internet et réessayez dans quelques secondes.",
+    pv_devisNo:'Devis N°', pv_dat:'Date', pv_valab:'Valable', pv_jou:'jours', pv_pwoje:'Projet', pv_adresChantye:'Adresse du chantier',
+    pv_kliyan:'Client', pv_telefon:'Téléphone', pv_materyèl:'Matériel / Travaux', pv_unite:'Unité', pv_kantite:'Quantité',
+    pv_priInite:'Prix Unitaire', pv_total:'Total (HTG)', pv_menDev:"Main-d'œuvre", pv_fiks:'Fixe', pv_lokasyon:'Location',
+    pv_soutotal:"Sous-total (Matériaux + Main-d'œuvre)", pv_majorasyon:'Majoration', pv_totalJeneral:'TOTAL GÉNÉRAL',
+    pv_echeansye:'Échéancier de Paiement', pv_kondisyon:'Conditions Générales', pv_siyatiKontrakte:"Signature & Cachet de l'Entrepreneur",
+    pv_siyatiKliyan:'Signature du Client', pv_nimewoDokiman:'Numéro de Document', pv_dokimanJenere:'Document généré pour',
+    pv_eskane:'Scannez le QR code pour vérifier que ce devis est authentique.', pv_taginKaye:'Métré & Devis de Construction'
   },
   en: {
     tagline:'Estimating & Quotes', dashboard_intro:'Your projects dashboard.',
@@ -324,7 +338,14 @@ var I18N = {
     cloud_konekte:'Sign In', cloud_kreyeKont:'Create Account', cloud_imel:'Email', cloud_modpas:'Password',
     cloud_apKreye:'Creating account...', cloud_apKonekte:'Signing in...', cloud_bliyeModpas:'Forgot password?',
     cloud_oswa:'OR', cloud_google:'Continue with Google', cloud_senkwonize:'Sync', cloud_dekonekte:'Sign Out',
-    auth_verifying:'Checking your session...', auth_offline:"We can't reach the sign-in service right now. Check your internet connection and try again in a moment."
+    auth_verifying:'Checking your session...', auth_offline:"We can't reach the sign-in service right now. Check your internet connection and try again in a moment.",
+    pv_devisNo:'Quote No.', pv_dat:'Date', pv_valab:'Valid', pv_jou:'days', pv_pwoje:'Project', pv_adresChantye:'Site address',
+    pv_kliyan:'Client', pv_telefon:'Phone', pv_materyèl:'Materials / Work', pv_unite:'Unit', pv_kantite:'Quantity',
+    pv_priInite:'Unit Price', pv_total:'Total (HTG)', pv_menDev:'Labor', pv_fiks:'Fixed', pv_lokasyon:'Rental',
+    pv_soutotal:'Subtotal (Materials + Labor)', pv_majorasyon:'Markup', pv_totalJeneral:'GRAND TOTAL',
+    pv_echeansye:'Payment Schedule', pv_kondisyon:'General Terms', pv_siyatiKontrakte:"Contractor's Signature & Stamp",
+    pv_siyatiKliyan:"Client's Signature", pv_nimewoDokiman:'Document Number', pv_dokimanJenere:'Document generated for',
+    pv_eskane:'Scan the QR code to verify the authenticity of this quote.', pv_taginKaye:'Construction Estimating & Quotes'
   }
 };
 function t(key){
@@ -411,7 +432,7 @@ function freshProject(){
 }
 
 // ---------------- state ----------------
-var S = { view:'list', index:null, current:null, active:0, showSummary:false, showCalc:false, showAddPhase:false, showSettings:false, showAI:false, saving:false, company:null, notifs:null, listFilter:'tout', user:null, authView:'login', authBusy:false, authError:'', cloudStatus:'', authEmail:'', authPassword:'', clientInfoOpen:true, notifOpen:false, authChecked:false, lang:'ht' };
+var S = { view:'list', index:null, current:null, active:0, showSummary:false, showCalc:false, showAddPhase:false, showSettings:false, showAI:false, saving:false, company:null, notifs:null, listFilter:'tout', user:null, authView:'login', authBusy:false, authError:'', authInfo:'', cloudStatus:'', authEmail:'', authPassword:'', signupType:'particulier', signupName:'', signupPhone:'', clientInfoOpen:true, notifOpen:false, authChecked:false, lang:'ht' };
 function updAuthField(f,v){ S['auth'+f]=v; }
 function setLang(lang){
   S.lang = lang;
@@ -459,7 +480,14 @@ function cloudReady(){ return !!(window.FB && window.FB.ready && S.user); }
 async function handleSignUp(email, password){
   if(!window.FB){ S.authError='Sistèm koneksyon an poko pare, tanpri eseye ankò nan 2-3 segond.'; render(); return; }
   if(!email || !password){ S.authError='Antre imèl ak modpas.'; render(); return; }
+  var isEnt = S.signupType==='entreprise';
+  if(!S.signupName){ S.authError = isEnt ? 'Antre non antrepriz la.' : 'Antre non konplè ou.'; render(); return; }
+  if(isEnt && !S.signupPhone){ S.authError = 'Antre yon telefòn pou antrepriz la.'; render(); return; }
   S.authBusy=true; S.authError=''; render();
+  // Pre-ranpli enfo konpayi/moun ak sa yo bay nan enskripsyon an, pou Paramèt yo deja gen yon baz.
+  if(!S.company) S.company = {non:'',slogan:'',logo:'',siyati:'',tel:'',adres:'',kondisyon:DEFAULT_TERMS,lang:S.lang||'ht'};
+  S.company.non = S.signupName;
+  if(S.signupPhone) S.company.tel = S.signupPhone;
   try{ await window.FB.signUp(email, password); }
   catch(e){ S.authError = e.message; }
   S.authBusy=false; render();
@@ -480,10 +508,17 @@ async function handleGoogleSignIn(){
   S.authBusy=false; render();
 }
 async function handleResetPassword(email){
-  if(!window.FB){ alertMsg('Sistèm koneksyon an poko pare, tanpri eseye ankò nan 2-3 segond.'); return; }
-  if(!email){ alertMsg('Antre imèl ou anlè a anvan, epi klike "Bliye modpas?" ankò.'); return; }
-  try{ await window.FB.resetPassword(email); alertMsg('Yon imèl pou chanje modpas voye bay '+email+'.'); }
-  catch(e){ alertMsg(e.message); }
+  S.authError=''; S.authInfo='';
+  if(!window.FB){ S.authError='Sistèm koneksyon an poko pare, tanpri eseye ankò nan 2-3 segond.'; render(); return; }
+  if(!email){ S.authError='Antre imèl ou anlè a anvan, epi klike "Bliye modpas?" ankò.'; render(); return; }
+  S.authBusy=true; render();
+  try{
+    await window.FB.resetPassword(email);
+    S.authInfo='Yon imèl pou chanje modpas voye bay '+email+'. Tcheke bwat resepsyon ou (ak dosye spam nan si ou pa wè l).';
+  } catch(e){
+    S.authError = e.message;
+  }
+  S.authBusy=false; render();
 }
 async function handleSignOut(){
   if(!window.FB) return;
@@ -501,7 +536,7 @@ async function fullCloudSync(){
     // Merge company: cloud wins if it exists, else push local up
     var cloudCompany = await window.FB.loadMeta(uid, 'company');
     if(cloudCompany){ S.company = cloudCompany; S.lang = cloudCompany.lang||'ht'; await saveCompany(cloudCompany); }
-    else if(S.company){ await window.FB.saveMeta(uid, 'company', S.company); }
+    else if(S.company){ await saveCompany(S.company); await window.FB.saveMeta(uid, 'company', S.company); }
 
     // Merge notifs: combine, de-dupe by text+ts, cap 15, newest first
     var cloudNotifs = await window.FB.loadMeta(uid, 'notifs');
@@ -599,8 +634,12 @@ setTimeout(function(){ if(!S.authChecked){ S.authChecked = true; render(); } }, 
 
 function itemTotal(it){
   var pm = Number(it.pm)||0, pmo = Number(it.pmo)||0, q = Number(it.q)||0;
+  if(it.priceMode==='fiks'){ return pm+pmo; }
+  // Yon liy ak kantite 0 se yon egzanp/gid ki poko itilize — li pa dwe konte nan total la,
+  // menm si li gen yon pri men-dèv ranpli kòm referans.
+  if(q===0){ return 0; }
   // Materyo miltipliye pa kantite; Men-dèv se toujou yon montan ki adisyone apa, li pa miltipliye pa kantite.
-  return (it.priceMode==='fiks') ? (pm+pmo) : (q*pm + pmo);
+  return (q*pm + pmo);
 }
 function totalsFor(phases){
   return phases.map(function(ph){
@@ -733,14 +772,18 @@ function renderList(){
       }).join('');
 
   var notifs = S.notifs || [];
-  var notifSection = '<details class="card" style="margin-bottom:18px;" '+(S.notifOpen?'open':'')+' ontoggle="S.notifOpen=this.open;">'
-    + '<summary style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.03em;color:var(--muted);cursor:pointer;">'+t('notif_title')+(notifs.length?' ('+notifs.length+')':'')+'</summary>'
-    + (notifs.length===0
+  var notifOpenNow = !!S.notifOpen;
+  var notifSection = '<div class="card" style="margin-bottom:18px;">'
+    + '<div onclick="S.notifOpen=!S.notifOpen;render();" style="display:flex;justify-content:space-between;align-items:center;cursor:pointer;">'
+      + '<span style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.03em;color:var(--muted);">'+t('notif_title')+(notifs.length?' ('+notifs.length+')':'')+'</span>'
+      + '<span style="color:var(--muted);transform:rotate('+(notifOpenNow?'180':'0')+'deg);transition:transform .15s;">'+chevronIcon()+'</span>'
+    + '</div>'
+    + (!notifOpenNow ? '' : (notifs.length===0
         ? '<p style="font-size:12px;color:var(--muted);margin:10px 0 0;">'+t('notif_empty')+'</p>'
         : '<div style="margin-top:10px;">' + notifs.slice(0,8).map(function(n){
             return '<div style="display:flex;justify-content:space-between;gap:8px;padding:6px 0;border-bottom:1px solid var(--line);font-size:12px;"><span>'+esc(n.text)+'</span><span class="mono" style="color:var(--muted);font-size:9px;white-space:nowrap;">'+new Date(n.ts).toLocaleDateString('fr-HT')+'</span></div>';
-          }).join('') + '</div>')
-    + '</details>';
+          }).join('') + '</div>'))
+    + '</div>';
 
   return '<div class="wrap" style="padding:24px 16px 40px;">'
     + '<div style="display:flex;justify-content:flex-end;align-items:center;gap:8px;margin-bottom:2px;">'
@@ -880,6 +923,16 @@ function cloudSyncPanel(){
       + '</div>';
   }
   var isSignup = S.authView==='signup';
+  var signupType = S.signupType||'particulier';
+  var isEnt = signupType==='entreprise';
+  var signupFields = !isSignup ? '' : (
+    '<div style="display:flex;gap:6px;margin-bottom:10px;">'
+      + '<button onclick="S.signupType=\'particulier\';render();" class="chip'+(!isEnt?' active':'')+'" style="flex:1;justify-content:center;">Patikilye</button>'
+      + '<button onclick="S.signupType=\'entreprise\';render();" class="chip'+(isEnt?' active':'')+'" style="flex:1;justify-content:center;">Antrepriz</button>'
+    + '</div>'
+    + '<div class="field" style="margin-bottom:8px;"><label>'+(isEnt?'Non Antrepriz *':'Non Konplè *')+'</label><input value="'+escAttr(S.signupName)+'" oninput="S.signupName=this.value" style="width:100%;background:var(--white);border:1px solid var(--line);border-radius:8px;padding:9px 10px;font-size:13px;box-sizing:border-box;"></div>'
+    + '<div class="field" style="margin-bottom:8px;"><label>Telefòn'+(isEnt?' *':' (opsyonèl)')+'</label><input value="'+escAttr(S.signupPhone)+'" oninput="S.signupPhone=this.value" style="width:100%;background:var(--white);border:1px solid var(--line);border-radius:8px;padding:9px 10px;font-size:13px;box-sizing:border-box;"></div>'
+  );
   return '<div class="card" style="margin-bottom:14px;padding:16px;">'
     + '<div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;">'
       + '<span style="width:26px;height:26px;border-radius:8px;background:rgba(232,96,44,.1);color:var(--accent);display:flex;align-items:center;justify-content:center;flex-shrink:0;">'+cloudIcon()+'</span>'
@@ -887,10 +940,12 @@ function cloudSyncPanel(){
     + '</div>'
     + '<p style="font-size:11px;color:var(--muted);margin:0 0 12px;line-height:1.5;">'+t('cloud_intro')+'</p>'
     + '<div style="display:flex;background:rgba(28,42,56,.06);border-radius:10px;padding:3px;margin-bottom:14px;">'
-      + '<button onclick="S.authView=\'login\';S.authError=\'\';render();" style="flex:1;border:none;background:'+(!isSignup?'var(--white)':'transparent')+';box-shadow:'+(!isSignup?'0 1px 3px rgba(0,0,0,.1)':'none')+';border-radius:8px;padding:7px 0;font-size:11px;font-weight:600;font-family:Inter,sans-serif;color:var(--ink);cursor:pointer;">'+t('cloud_konekte')+'</button>'
-      + '<button onclick="S.authView=\'signup\';S.authError=\'\';render();" style="flex:1;border:none;background:'+(isSignup?'var(--white)':'transparent')+';box-shadow:'+(isSignup?'0 1px 3px rgba(0,0,0,.1)':'none')+';border-radius:8px;padding:7px 0;font-size:11px;font-weight:600;font-family:Inter,sans-serif;color:var(--ink);cursor:pointer;">'+t('cloud_kreyeKont')+'</button>'
+      + '<button onclick="S.authView=\'login\';S.authError=\'\';S.authInfo=\'\';render();" style="flex:1;border:none;background:'+(!isSignup?'var(--white)':'transparent')+';box-shadow:'+(!isSignup?'0 1px 3px rgba(0,0,0,.1)':'none')+';border-radius:8px;padding:7px 0;font-size:11px;font-weight:600;font-family:Inter,sans-serif;color:var(--ink);cursor:pointer;">'+t('cloud_konekte')+'</button>'
+      + '<button onclick="S.authView=\'signup\';S.authError=\'\';S.authInfo=\'\';render();" style="flex:1;border:none;background:'+(isSignup?'var(--white)':'transparent')+';box-shadow:'+(isSignup?'0 1px 3px rgba(0,0,0,.1)':'none')+';border-radius:8px;padding:7px 0;font-size:11px;font-weight:600;font-family:Inter,sans-serif;color:var(--ink);cursor:pointer;">'+t('cloud_kreyeKont')+'</button>'
     + '</div>'
     + (S.authError ? '<div style="background:rgba(192,57,43,.08);border:1px solid rgba(192,57,43,.2);border-radius:8px;padding:8px 10px;margin-bottom:10px;"><p style="font-size:11px;color:#C0392B;margin:0;">'+esc(S.authError)+'</p></div>' : '')
+    + (S.authInfo ? '<div style="background:rgba(46,125,50,.08);border:1px solid rgba(46,125,50,.2);border-radius:8px;padding:8px 10px;margin-bottom:10px;"><p style="font-size:11px;color:#2E7D32;margin:0;">'+esc(S.authInfo)+'</p></div>' : '')
+    + signupFields
     + '<div style="position:relative;"><span style="position:absolute;left:10px;top:50%;transform:translateY(-50%);color:var(--muted);pointer-events:none;">'+mailIcon()+'</span><input type="email" name="auth_email" value="'+escAttr(S.authEmail)+'" oninput="updAuthField(\'Email\',this.value)" placeholder="'+esc(t('cloud_imel'))+'" style="width:100%;background:var(--white);border:1px solid var(--line);border-radius:8px;padding:9px 10px 9px 34px;font-size:13px;box-sizing:border-box;"></div>'
     + '<div style="position:relative;margin-top:8px;"><span style="position:absolute;left:10px;top:50%;transform:translateY(-50%);color:var(--muted);pointer-events:none;">'+lockIcon()+'</span><input type="password" name="auth_password" value="'+escAttr(S.authPassword)+'" oninput="updAuthField(\'Password\',this.value)" placeholder="'+esc(t('cloud_modpas'))+'" style="width:100%;background:var(--white);border:1px solid var(--line);border-radius:8px;padding:9px 10px 9px 34px;font-size:13px;box-sizing:border-box;"></div>'
     + (isSignup
@@ -1051,9 +1106,14 @@ function renderEditor(){
 }
 
 function clientInfoPanel(p){
-  return '<details class="card" style="margin-top:12px;" '+(S.clientInfoOpen?'open':'')+' ontoggle="S.clientInfoOpen=this.open;">'
-    + '<summary style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.03em;color:var(--muted);cursor:pointer;">Enfo Kliyan &amp; Pwojè</summary>'
-    + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px;">'
+  var open = !!S.clientInfoOpen;
+  return '<div class="card" style="margin-top:12px;">'
+    + '<div onclick="S.clientInfoOpen=!S.clientInfoOpen;render();" style="display:flex;justify-content:space-between;align-items:center;cursor:pointer;">'
+      + '<span style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.03em;color:var(--muted);">Enfo Kliyan &amp; Pwojè</span>'
+      + '<span style="color:var(--muted);transform:rotate('+(open?'180':'0')+'deg);transition:transform .15s;">'+chevronIcon()+'</span>'
+    + '</div>'
+    + (!open ? '' : (
+      '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px;">'
     + fieldHtml('Non Kliyan','<input value="'+escAttr(p.kliyan)+'" oninput="updProj(\'kliyan\',this.value)">')
     + fieldHtml('Telefòn','<input value="'+escAttr(p.telefon)+'" oninput="updProj(\'telefon\',this.value)">')
     + '</div>'
@@ -1065,7 +1125,7 @@ function clientInfoPanel(p){
     + '<p class="mono" style="font-size:9px;text-transform:uppercase;color:var(--muted);margin:14px 0 8px;border-top:1px solid var(--line);padding-top:10px;">Jesyon Pwojè</p>'
     + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">'
     + '<div class="field"><label>Tip Pwojè</label><select onchange="updProj(\'typeProjet\',this.value)" style="width:100%;font-size:13px;background:var(--paper);border-radius:6px;padding:7px 8px;border:1px solid transparent;">'
-      + TYPE_PROJET_LIST.map(function(t){ return '<option value="'+esc(t)+'" '+(t===p.typeProjet?'selected':'')+'>'+esc(t)+'</option>'; }).join('')
+      + TYPE_PROJET_LIST.map(function(tp){ return '<option value="'+esc(tp)+'" '+(tp===p.typeProjet?'selected':'')+'>'+esc(tp)+'</option>'; }).join('')
     + '</select></div>'
     + '<div class="field"><label>Statu</label><select onchange="updProj(\'statut\',this.value)" style="width:100%;font-size:13px;background:var(--paper);border-radius:6px;padding:7px 8px;border:1px solid transparent;">'
       + Object.keys(STATUT_META).map(function(k){ return '<option value="'+k+'" '+(k===p.statut?'selected':'')+'>'+esc(STATUT_META[k].label)+'</option>'; }).join('')
@@ -1076,7 +1136,8 @@ function clientInfoPanel(p){
     + fieldHtml('Dat Fen Prevwa','<input type="date" value="'+escAttr(p.dateFen)+'" oninput="updProj(\'dateFen\',this.value)">')
     + '</div>'
     + '<div style="margin-top:8px;">'+fieldHtml('Obsèvasyon','<textarea rows="2" oninput="updProj(\'obsèvasyon\',this.value)">'+esc(p.obsèvasyon)+'</textarea>')+'</div>'
-    + '</details>';
+    ))
+    + '</div>';
 }
 function fieldHtml(label, inputHtml){ return '<div class="field"><label>'+esc(label)+'</label>'+inputHtml+'</div>'; }
 
@@ -1790,42 +1851,42 @@ function updatePrintSheet(){
       var isFiks = it.priceMode==='fiks';
       var lineTotal = itemTotal(it);
       var pmoVal = Number(it.pmo)||0;
-      var puDisplay = isFiks ? '<span style="font-style:italic;color:#888;">Fiks</span>' : fmt(Number(it.pm)||0);
+      var puDisplay = isFiks ? '<span style="font-style:italic;color:#888;">'+t('pv_fiks')+'</span>' : fmt(Number(it.pm)||0);
       var qDisplay = isFiks ? (Number(it.q)? fmt(it.q) : '—') : fmt(it.q);
-      var tag = (it.tip==='lokasyon') ? ' <span style="color:#999;font-style:italic;font-size:9px;">(Lokasyon)</span>' : '';
-      var mdNote = (!isFiks && pmoVal>0) ? '<br><span style="font-size:9px;color:#888;">+ Men-d\'èv: '+fmt(pmoVal)+' G</span>' : '';
+      var tag = (it.tip==='lokasyon') ? ' <span style="color:#999;font-style:italic;font-size:9px;">('+t('pv_lokasyon')+')</span>' : '';
+      var mdNote = (!isFiks && pmoVal>0) ? '<br><span style="font-size:9px;color:#888;">+ '+t('pv_menDev')+': '+fmt(pmoVal)+' G</span>' : '';
       return '<tr><td style="padding:4px 6px;border-bottom:1px solid #ddd;">'+esc(it.d)+tag+mdNote+'</td><td style="padding:4px 6px;border-bottom:1px solid #ddd;text-align:center;">'+esc(it.u)+'</td><td style="padding:4px 6px;border-bottom:1px solid #ddd;text-align:right;">'+qDisplay+'</td><td style="padding:4px 6px;border-bottom:1px solid #ddd;text-align:right;">'+puDisplay+'</td><td style="padding:4px 6px;border-bottom:1px solid #ddd;text-align:right;">'+fmt(lineTotal)+'</td></tr>';
     }).join('');
     if(!rows) return '';
     return '<h3 style="font-family:Oswald,sans-serif;font-size:13px;text-transform:uppercase;margin:16px 0 6px;">'+ph.n+'. '+esc(ph.label)+'</h3>'
-    + '<table style="width:100%;border-collapse:collapse;font-size:11px;"><thead><tr style="background:#1C2A38;color:#fff;"><th style="padding:5px 6px;text-align:left;">Materyèl / Travay</th><th style="padding:5px 6px;">Unite</th><th style="padding:5px 6px;text-align:right;">Kantite</th><th style="padding:5px 6px;text-align:right;">Pri Inite</th><th style="padding:5px 6px;text-align:right;">Total (HTG)</th></tr></thead><tbody>'+rows+'</tbody></table>';
+    + '<table style="width:100%;border-collapse:collapse;font-size:11px;"><thead><tr style="background:#1C2A38;color:#fff;"><th style="padding:5px 6px;text-align:left;">'+t('pv_materyèl')+'</th><th style="padding:5px 6px;">'+t('pv_unite')+'</th><th style="padding:5px 6px;text-align:right;">'+t('pv_kantite')+'</th><th style="padding:5px 6px;text-align:right;">'+t('pv_priInite')+'</th><th style="padding:5px 6px;text-align:right;">'+t('pv_total')+'</th></tr></thead><tbody>'+rows+'</tbody></table>';
   }).join('');
 
-  var trancheRows = (p.tranches||[]).map(function(t){
-    return '<div style="display:flex;justify-content:space-between;padding:3px 0;"><span>'+esc(t.label)+' ('+esc(t.pct)+'%)</span><span>'+fmt(finalHTG*(Number(t.pct)||0)/100)+' HTG</span></div>';
+  var trancheRows = (p.tranches||[]).map(function(tr){
+    return '<div style="display:flex;justify-content:space-between;padding:3px 0;"><span>'+esc(tr.label)+' ('+esc(tr.pct)+'%)</span><span>'+fmt(finalHTG*(Number(tr.pct)||0)/100)+' HTG</span></div>';
   }).join('');
 
   el.innerHTML = '<div style="max-width:750px;margin:0 auto;padding:30px;font-family:Inter,sans-serif;color:#1C2A38;">'
   + '<div style="display:flex;justify-content:space-between;align-items:flex-start;border-bottom:3px solid #E8602C;padding-bottom:14px;">'
-    + '<div><img src="'+(company.logo||('data:image/jpeg;base64,'+DEFAULT_LOGO_B64))+'" style="height:52px;display:block;"><p style="font-family:Oswald,sans-serif;font-size:14px;font-weight:700;text-transform:uppercase;margin:8px 0 0;">'+esc(company.non||'GLC Construction HT')+'</p><p style="font-size:11px;color:#666;margin:2px 0 0;">'+(company.slogan?esc(company.slogan):'Kaye Metre &amp; Devis Konstriksyon')+(company.tel?(' — Tel: '+esc(company.tel)):'')+(company.adres?(' — '+esc(company.adres)):'')+'</p></div>'
-    + '<div style="text-align:right;font-size:11px;"><strong>Devis N°:</strong> '+esc(p.devisNo)+'<br><strong>Dat:</strong> '+esc(p.dat)+'<br><strong>Valab:</strong> '+esc(p.validite||30)+' jou</div>'
+    + '<div><img src="'+(company.logo||('data:image/jpeg;base64,'+DEFAULT_LOGO_B64))+'" style="height:52px;display:block;"><p style="font-family:Oswald,sans-serif;font-size:14px;font-weight:700;text-transform:uppercase;margin:8px 0 0;">'+esc(company.non||'GLC Construction HT')+'</p><p style="font-size:11px;color:#666;margin:2px 0 0;">'+(company.slogan?esc(company.slogan):t('pv_taginKaye'))+(company.tel?(' — '+t('pv_telefon')+': '+esc(company.tel)):'')+(company.adres?(' — '+esc(company.adres)):'')+'</p></div>'
+    + '<div style="text-align:right;font-size:11px;"><strong>'+t('pv_devisNo')+':</strong> '+esc(p.devisNo)+'<br><strong>'+t('pv_dat')+':</strong> '+esc(p.dat)+'<br><strong>'+t('pv_valab')+':</strong> '+esc(p.validite||30)+' '+t('pv_jou')+'</div>'
   + '</div>'
   + '<div style="display:flex;justify-content:space-between;margin-top:14px;font-size:12px;">'
-    + '<div><strong>Pwojè:</strong> '+esc(p.projet||'—')+'<br><strong>Adrès chantye:</strong> '+esc(p.adres||'—')+'</div>'
-    + '<div style="text-align:right;"><strong>Kliyan:</strong> '+esc(p.kliyan||'—')+'<br><strong>Telefòn:</strong> '+esc(p.telefon||'—')+'</div>'
+    + '<div><strong>'+t('pv_pwoje')+':</strong> '+esc(p.projet||'—')+'<br><strong>'+t('pv_adresChantye')+':</strong> '+esc(p.adres||'—')+'</div>'
+    + '<div style="text-align:right;"><strong>'+t('pv_kliyan')+':</strong> '+esc(p.kliyan||'—')+'<br><strong>'+t('pv_telefon')+':</strong> '+esc(p.telefon||'—')+'</div>'
   + '</div>'
   + phaseBlocks
   + '<div style="margin-top:20px;padding-top:12px;border-top:2px solid #1C2A38;font-size:12px;">'
-    + '<div style="display:flex;justify-content:space-between;padding:3px 0;"><span>Sou-total (Materyo + Men-d\'èv)</span><span>'+fmt(sub)+' HTG</span></div>'
-    + '<div style="display:flex;justify-content:space-between;padding:3px 0;"><span>Majorasyon ('+esc(p.majorasyon)+'%)</span><span>'+fmt(majAmt)+' HTG</span></div>'
-    + '<div style="display:flex;justify-content:space-between;padding:8px 0;margin-top:6px;border-top:1px solid #1C2A38;font-family:Oswald,sans-serif;font-size:16px;font-weight:700;"><span>TOTAL JENERAL</span><span style="color:#E8602C;">'+fmt(finalHTG)+' HTG</span></div>'
+    + '<div style="display:flex;justify-content:space-between;padding:3px 0;"><span>'+t('pv_soutotal')+'</span><span>'+fmt(sub)+' HTG</span></div>'
+    + '<div style="display:flex;justify-content:space-between;padding:3px 0;"><span>'+t('pv_majorasyon')+' ('+esc(p.majorasyon)+'%)</span><span>'+fmt(majAmt)+' HTG</span></div>'
+    + '<div style="display:flex;justify-content:space-between;padding:8px 0;margin-top:6px;border-top:1px solid #1C2A38;font-family:Oswald,sans-serif;font-size:16px;font-weight:700;"><span>'+t('pv_totalJeneral')+'</span><span style="color:#E8602C;">'+fmt(finalHTG)+' HTG</span></div>'
     + '<div style="display:flex;justify-content:flex-end;font-size:11px;color:#666;">≈ $'+fmt(finalUSD)+' USD (to '+esc(p.tauxUSD)+' G/$)</div>'
   + '</div>'
-  + (trancheRows ? ('<div style="margin-top:14px;font-size:12px;"><strong style="font-family:Oswald,sans-serif;text-transform:uppercase;font-size:12px;">Echeansye Peman</strong>'+trancheRows+'</div>') : '')
-  + '<div style="margin-top:16px;font-size:10px;color:#555;border-top:1px solid #ddd;padding-top:10px;"><strong>Kondisyon Jeneral:</strong> '+esc(company.kondisyon||DEFAULT_TERMS)+'</div>'
+  + (trancheRows ? ('<div style="margin-top:14px;font-size:12px;"><strong style="font-family:Oswald,sans-serif;text-transform:uppercase;font-size:12px;">'+t('pv_echeansye')+'</strong>'+trancheRows+'</div>') : '')
+  + '<div style="margin-top:16px;font-size:10px;color:#555;border-top:1px solid #ddd;padding-top:10px;"><strong>'+t('pv_kondisyon')+':</strong> '+esc(company.kondisyon||DEFAULT_TERMS)+'</div>'
   + '<div style="margin-top:40px;display:flex;justify-content:space-between;font-size:11px;">'
-    + '<div>'+(company.siyati?('<img src="'+company.siyati+'" style="height:44px;display:block;margin-bottom:4px;">'):'<div style="height:44px;"></div>')+'Siyati &amp; Cachet Kontraktè<div style="margin-top:'+(company.siyati?'2':'36')+'px;border-top:1px solid #999;width:180px;"></div></div>'
-    + '<div><div style="height:44px;"></div>Siyati Kliyan<div style="margin-top:36px;border-top:1px solid #999;width:180px;"></div></div>'
+    + '<div>'+(company.siyati?('<img src="'+company.siyati+'" style="height:44px;display:block;margin-bottom:4px;">'):'<div style="height:44px;"></div>')+t('pv_siyatiKontrakte')+'<div style="margin-top:'+(company.siyati?'2':'36')+'px;border-top:1px solid #999;width:180px;"></div></div>'
+    + '<div><div style="height:44px;"></div>'+t('pv_siyatiKliyan')+'<div style="margin-top:36px;border-top:1px solid #999;width:180px;"></div></div>'
   + '</div>'
   + qrVerificationBlock(p, company)
   + '</div>';
@@ -1834,7 +1895,7 @@ function qrVerificationBlock(p, company){
   var verifText = (p.devisNo||'')+' | '+(company.non||'')+' | '+(p.kliyan||'')+' | '+p.dat;
   var qrUrl = 'https://api.qrserver.com/v1/create-qr-code/?size=90x90&data='+encodeURIComponent(verifText);
   return '<div style="margin-top:22px;display:flex;justify-content:space-between;align-items:center;border-top:1px dashed #ccc;padding-top:12px;">'
-    + '<div style="font-size:9px;color:#888;line-height:1.5;"><strong>Nimewo Dokiman:</strong> '+esc(p.devisNo)+'<br><strong>Dokiman jenere pou:</strong> '+esc(p.dat)+'<br>Eskane kòd QR la pou verifye otantisite devis sa a.</div>'
+    + '<div style="font-size:9px;color:#888;line-height:1.5;"><strong>'+t('pv_nimewoDokiman')+':</strong> '+esc(p.devisNo)+'<br><strong>'+t('pv_dokimanJenere')+':</strong> '+esc(p.dat)+'<br>'+t('pv_eskane')+'</div>'
     + '<img src="'+qrUrl+'" style="width:70px;height:70px;flex-shrink:0;" alt="QR Verifikasyon">'
   + '</div>';
 }
@@ -1843,6 +1904,7 @@ function qrVerificationBlock(p, company){
 function fullLogo(maxWidth){ return '<img src="data:image/jpeg;base64,'+DEFAULT_LOGO_B64+'" style="display:block;margin:0 auto;max-width:'+maxWidth+'px;width:100%;height:auto;">'; }
 function glcMark(size){ return '<img src="data:image/png;base64,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" style="width:'+size+'px;height:'+size+'px;border-radius:6px;flex-shrink:0;" alt="GLC">'; }
 function plusIcon(){ return '<svg class="icon" viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>'; }
+function chevronIcon(){ return '<svg class="icon" viewBox="0 0 24 24" style="width:14px;height:14px;"><polyline points="6 9 12 15 18 9"/></svg>'; }
 function trashIcon(){ return '<svg class="icon" viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>'; }
 function cloudIcon(){ return '<svg class="icon" viewBox="0 0 24 24"><path d="M18 10h-1.26A8 8 0 1 0 9 20h9a5 5 0 0 0 0-10z"/></svg>'; }
 function mailIcon(){ return '<svg class="icon" viewBox="0 0 24 24"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="M22 7l-10 6L2 7"/></svg>'; }
