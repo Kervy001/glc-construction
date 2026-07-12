@@ -128,6 +128,21 @@ textarea{width:100%;font-size:13px;background:var(--paper);border-radius:6px;pad
     loadMeta: function(uid, key){
       return getDoc(doc(db, 'users', uid, 'meta', key)).then(function(snap){ return snap.exists() ? snap.data() : null; });
     },
+    saveSubscription: function(uid, dataObj){ return setDoc(doc(db, 'subscriptions', uid), dataObj); },
+    loadSubscription: function(uid){
+      return getDoc(doc(db, 'subscriptions', uid)).then(function(snap){ return snap.exists() ? snap.data() : null; });
+    },
+    listAllSubscriptions: function(){
+      return getDocs(collection(db, 'subscriptions')).then(function(qs){
+        var out = [];
+        qs.forEach(function(d){ out.push(Object.assign({uid:d.id}, d.data())); });
+        return out;
+      });
+    },
+    loadPriceLibrary: function(){
+      return getDoc(doc(db, 'priceLibrary', 'global')).then(function(snap){ return snap.exists() ? snap.data() : null; });
+    },
+    savePriceLibrary: function(dataObj){ return setDoc(doc(db, 'priceLibrary', 'global'), dataObj); },
     saveProject: function(uid, id, dataObj){ return setDoc(doc(db, 'users', uid, 'projects', id), dataObj); },
     loadProject: function(uid, id){
       return getDoc(doc(db, 'users', uid, 'projects', id)).then(function(snap){ return snap.exists() ? snap.data() : null; });
@@ -257,6 +272,8 @@ var STATUT_META = {
   fini:     {label:'Fini',     color:'#2E7D32'}
 };
 var TYPE_PROJET_LIST = ['Rezidansyèl','Komèsyal','Piblik / Enstitisyonèl','Endistriyèl','Rénovasyon','Enfrastrikti','Lòt'];
+var ADMIN_EMAILS = ['lumatkervens4@gmail.com','limatkervens@gmail.com'];
+var TRIAL_DAYS = 3;
 
 // ================= I18N (app interface only — devis content stays as typed) =================
 var I18N = {
@@ -432,7 +449,10 @@ function freshProject(){
 }
 
 // ---------------- state ----------------
-var S = { view:'list', index:null, current:null, active:0, showSummary:false, showCalc:false, showAddPhase:false, showSettings:false, showAI:false, saving:false, company:null, notifs:null, listFilter:'tout', user:null, authView:'login', authBusy:false, authError:'', authInfo:'', cloudStatus:'', authEmail:'', authPassword:'', signupType:'particulier', signupName:'', signupPhone:'', clientInfoOpen:true, progressOpen:true, notifOpen:false, authChecked:false, lang:'ht' };
+var S = { view:'list', index:null, current:null, active:0, showSummary:false, showCalc:false, showAddPhase:false, showSettings:false, showAI:false, saving:false, company:null, notifs:null, listFilter:'tout', user:null, authView:'login', authBusy:false, authError:'', authInfo:'', cloudStatus:'', authEmail:'', authPassword:'', signupType:'particulier', signupName:'', signupPhone:'', clientInfoOpen:false, progressOpen:false, notifOpen:false, authChecked:false, lang:'ht', subscription:null, subChecked:false, adminUsers:null, adminBusy:false, adminFilter:'tout', adminSearch:'',
+  priceLibrary:null, showPricePicker:false, pricePickerItemId:null, pricePickerSearch:'',
+  newMatName:'', newMatUnit:'', newSupName:'', newSupZone:'', newSupPhone:'', newSupAddr:'',
+  priceFormMat:'', priceFormSup:'', priceFormAmt:'', priceFormType:'vann' };
 function updAuthField(f,v){ S['auth'+f]=v; }
 function setLang(lang){
   S.lang = lang;
@@ -457,6 +477,34 @@ async function loadCompany(){
   catch(e){ return {non:'', slogan:'', logo:'', siyati:'', tel:'', adres:'', kondisyon: DEFAULT_TERMS, lang:'ht'}; }
 }
 async function saveCompany(c){ try{ await window.storage.set('devis:company', JSON.stringify(c)); }catch(e){} }
+async function loadPriceLibraryLocal(){
+  try{ var r = await window.storage.get('devis:priceLibrary'); return r ? JSON.parse(r.value) : {materials:[], suppliers:[], prices:[]}; }
+  catch(e){ return {materials:[], suppliers:[], prices:[]}; }
+}
+async function savePriceLibraryLocal(lib){ try{ await window.storage.set('devis:priceLibrary', JSON.stringify(lib)); }catch(e){} }
+async function ensurePriceLibraryLoaded(){
+  if(S.priceLibrary) return S.priceLibrary;
+  var lib = await loadPriceLibraryLocal();
+  S.priceLibrary = lib;
+  if(window.FB){
+    try{
+      var cloudLib = await window.FB.loadPriceLibrary();
+      if(cloudLib){ S.priceLibrary = cloudLib; await savePriceLibraryLocal(cloudLib); }
+    }catch(e){}
+  }
+  return S.priceLibrary;
+}
+async function refreshPriceLibraryFromCloud(){
+  if(!window.FB) return;
+  try{
+    var cloudLib = await window.FB.loadPriceLibrary();
+    if(cloudLib){ S.priceLibrary = cloudLib; await savePriceLibraryLocal(cloudLib); render(); }
+  }catch(e){}
+}
+async function persistPriceLibrary(){
+  await savePriceLibraryLocal(S.priceLibrary);
+  if(window.FB){ try{ await window.FB.savePriceLibrary(S.priceLibrary); }catch(e){} }
+}
 async function loadNotifs(){
   try{ var r = await window.storage.get('devis:notifs'); return r ? JSON.parse(r.value) : []; }
   catch(e){ return []; }
@@ -572,7 +620,12 @@ async function fullCloudSync(){
       if(cloudProj && (!localEntry || (cloudProj.updatedAt||0) >= (localEntry.updatedAt||0))){
         // cloud is newer or local doesn't have it: pull down
         await window.storage.set('devis:data:'+id, JSON.stringify(cloudProj));
-        finalIndex.push({ id:cloudProj.id, projet:cloudProj.projet||cloudProj.kliyan||'Pwojè san non', kliyan:cloudProj.kliyan, devisNo:cloudProj.devisNo, updatedAt:cloudProj.updatedAt||Date.now(), totalHTG:cloudProj.totalHTG||0, statut:cloudProj.statut||'an_kou', typeProjet:cloudProj.typeProjet||'', dateDebi:cloudProj.dateDebi||'', dateFen:cloudProj.dateFen||'' });
+        var cpTotals = totalsFor(cloudProj.phases||[]);
+        var cpSub = cpTotals.reduce(function(a,b){return a+b;},0);
+        var cpWeighted = 0;
+        (cloudProj.phases||[]).forEach(function(ph,i){ cpWeighted += (Number(ph.avansman)||0)*cpTotals[i]; });
+        var cpAvansman = cpSub>0 ? Math.round(cpWeighted/cpSub) : 0;
+        finalIndex.push({ id:cloudProj.id, projet:cloudProj.projet||cloudProj.kliyan||'Pwojè san non', kliyan:cloudProj.kliyan, devisNo:cloudProj.devisNo, updatedAt:cloudProj.updatedAt||Date.now(), totalHTG:cloudProj.totalHTG||0, statut:cloudProj.statut||'an_kou', typeProjet:cloudProj.typeProjet||'', dateDebi:cloudProj.dateDebi||'', dateFen:cloudProj.dateFen||'', avansman:cpAvansman, deletedAt:cloudProj.deletedAt||null });
       } else if(localEntry){
         // local is newer or cloud doesn't have it: push up
         finalIndex.push(localEntry);
@@ -591,6 +644,7 @@ async function fullCloudSync(){
     S.cloudStatus='erè senkwonizasyon';
   }
   render();
+  purgeOldTrash();
 }
 
 // Incremental pushes — called after every local save, best-effort/non-blocking
@@ -621,16 +675,50 @@ window.addEventListener('fb-auth-changed', function(e){
   S.user = e.detail;
   if(S.user){
     S.authError=''; S.authBusy=false;
-    if(wasLoggedOut){ fullCloudSync(); }
+    if(wasLoggedOut){ fullCloudSync(); checkSubscription(); }
   } else {
     S.cloudStatus='';
     S.view='list'; S.current=null;
+    S.subscription=null; S.subChecked=false; S.adminUsers=null;
   }
   render();
 });
 // Fallback in case the Firebase module never loads (e.g. no internet on first-ever visit):
 // don't leave the person stuck on a spinner forever.
 setTimeout(function(){ if(!S.authChecked){ S.authChecked = true; render(); } }, 6000);
+
+function isAdminUser(){ return !!(S.user && ADMIN_EMAILS.indexOf(S.user.email)>=0); }
+function isSubExpired(){
+  if(isAdminUser()) return false;
+  if(!S.subChecked || !S.subscription) return false;
+  var exp = new Date(S.subscription.expiresAt);
+  if(isNaN(exp.getTime())) return false;
+  return new Date() > exp;
+}
+function isReadOnlyMode(){ return isSubExpired(); }
+function blockIfReadOnly(){
+  if(isReadOnlyMode()){
+    alertMsg('Abònman ou ekspire — ou ka gade enfo ak devis ou yo, men ou pa ka ajoute oswa modifye anyen jiskaske ou renouvle. Kontakte administratè a.');
+    return true;
+  }
+  return false;
+}
+async function checkSubscription(){
+  if(isAdminUser()){ S.subChecked=true; render(); return; }
+  if(!window.FB || !S.user) return;
+  try{
+    var sub = await window.FB.loadSubscription(S.user.uid);
+    if(!sub){
+      var now = new Date();
+      var expires = new Date(now.getTime() + TRIAL_DAYS*24*60*60*1000);
+      sub = { email:S.user.email, plan:'esè', expiresAt:expires.toISOString(), createdAt:now.toISOString() };
+      await window.FB.saveSubscription(S.user.uid, sub);
+    }
+    S.subscription = sub;
+  }catch(e){}
+  S.subChecked = true;
+  render();
+}
 
 function itemTotal(it){
   var pm = Number(it.pm)||0, pmo = Number(it.pmo)||0, q = Number(it.q)||0;
@@ -659,7 +747,7 @@ async function persist(proj){
     var avansman = sub>0 ? Math.round(weighted/sub) : 0;
     var list = await loadIndex();
     var i = list.findIndex(function(p){ return p.id===proj.id; });
-    var entry = { id:proj.id, projet: proj.projet || proj.kliyan || 'Pwojè san non', kliyan: proj.kliyan, devisNo: proj.devisNo, updatedAt: Date.now(), totalHTG: fin, statut: proj.statut||'an_kou', typeProjet: proj.typeProjet||'', dateDebi: proj.dateDebi||'', dateFen: proj.dateFen||'', avansman: avansman };
+    var entry = { id:proj.id, projet: proj.projet || proj.kliyan || 'Pwojè san non', kliyan: proj.kliyan, devisNo: proj.devisNo, updatedAt: Date.now(), totalHTG: fin, statut: proj.statut||'an_kou', typeProjet: proj.typeProjet||'', dateDebi: proj.dateDebi||'', dateFen: proj.dateFen||'', avansman: avansman, deletedAt: proj.deletedAt||null };
     if(i>=0) list[i]=entry; else list.unshift(entry);
     await saveIndex(list);
     S.index = list;
@@ -680,10 +768,39 @@ function updateSavingIndicator(){
 // ---------------- render root ----------------
 function render(){
   var app = document.getElementById('app');
+  if(S._skipPanelAutoClose){ S._skipPanelAutoClose = false; }
+  else { S.clientInfoOpen = false; S.progressOpen = false; }
   if(!S.authChecked || !S.user){ app.innerHTML = renderAuthGate(); updatePrintSheet(); return; }
+  if(!S.subChecked && !isAdminUser()){ app.innerHTML = renderSubCheckingScreen(); return; }
+  if(S.view==='admin'){ app.innerHTML = renderAdmin(); return; }
+  if(S.view==='pricelib'){ app.innerHTML = renderPriceLibraryAdmin(); return; }
+  if(S.view==='trash'){ app.innerHTML = renderTrash(); return; }
   if(S.view==='list'){ app.innerHTML = renderList(); }
   else { app.innerHTML = renderEditor(); }
   updatePrintSheet();
+}
+function readOnlyBanner(){
+  if(!isReadOnlyMode()) return '';
+  var wasT = S.subscription && S.subscription.plan==='esè';
+  return '<div class="card" style="margin-bottom:14px;background:rgba(192,57,43,.06);border-color:rgba(192,57,43,.3);">'
+    + '<p style="font-size:12px;margin:0;font-weight:600;color:#C0392B;">🔒 '+(wasT?'Peryòd esè a fini.':'Abònman ekspire.')+' Ou ka gade pwojè ak devis ou yo, men ou pa ka ajoute/modifye jiskaske ou renouvle.</p>'
+    + '</div>';
+}
+function renderSubCheckingScreen(){
+  return '<div style="min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;padding:24px;">'
+    + glcMark(40)
+    + '<p class="mono" style="font-size:11px;color:var(--muted);">Ap verifye abònman ou...</p>'
+    + '</div>';
+}
+function toggleClientInfoPanel(){
+  S.clientInfoOpen = !S.clientInfoOpen;
+  S._skipPanelAutoClose = true;
+  render();
+}
+function toggleProgressPanel(){
+  S.progressOpen = !S.progressOpen;
+  S._skipPanelAutoClose = true;
+  render();
 }
 function renderAuthGate(){
   if(!S.authChecked){
@@ -731,7 +848,8 @@ function renderList(){
   if(S.index===null){
     return '<div style="min-height:100vh;display:flex;align-items:center;justify-content:center;">'+glcMark(28)+'</div>';
   }
-  var all = S.index.slice().sort(function(a,b){return b.updatedAt-a.updatedAt;});
+  var trashCount = S.index.filter(function(p){return p.deletedAt;}).length;
+  var all = S.index.filter(function(p){return !p.deletedAt;}).sort(function(a,b){return b.updatedAt-a.updatedAt;});
 
   // ---- dashboard summary ----
   var nAktif = all.filter(function(p){ return p.statut==='an_kou' || p.statut==='planifye' || !p.statut; }).length;
@@ -790,24 +908,42 @@ function renderList(){
           }).join('') + '</div>'))
     + '</div>';
 
+  var trialBanner = (S.subscription && S.subscription.plan==='esè' && !isAdminUser() && !isReadOnlyMode())
+    ? (function(){
+        var exp = new Date(S.subscription.expiresAt);
+        var daysLeft = Math.max(0, Math.ceil((exp-new Date())/(1000*60*60*24)));
+        return '<div class="card" style="margin-bottom:14px;background:rgba(232,96,44,.06);border-color:rgba(232,96,44,.3);">'
+          + '<p style="font-size:12px;margin:0;">🎁 <strong>Peryòd Esè:</strong> '+daysLeft+' jou rete. Kontakte administratè a pou aktive yon abònman.</p>'
+          + '</div>';
+      })()
+    : readOnlyBanner();
+
   return '<div class="wrap" style="padding:24px 16px 40px;">'
     + '<div style="display:flex;justify-content:flex-end;align-items:center;gap:8px;margin-bottom:2px;">'
       + (S.user ? '<span class="mono" style="font-size:9px;color:#2E7D32;display:flex;align-items:center;gap:4px;"><span style="width:6px;height:6px;border-radius:50%;background:#2E7D32;"></span>'+esc(S.user.email)+'</span>' : '')
+      + (isAdminUser() ? '<button onclick="openAdminPanel()" style="padding:6px;background:rgba(232,96,44,.12);border-radius:8px;color:var(--accent);" title="Panel Admin">'+shieldIcon()+'</button>' : '')
+      + '<button onclick="openTrashView()" style="position:relative;padding:6px;background:rgba(28,42,56,.06);border-radius:8px;" title="Kòbèy">'+trashIcon()+(trashCount>0?('<span class="mono" style="position:absolute;top:-4px;right:-4px;background:#C0392B;color:#fff;font-size:8px;font-weight:700;border-radius:999px;min-width:15px;height:15px;display:flex;align-items:center;justify-content:center;padding:0 3px;">'+trashCount+'</span>'):'')+'</button>'
       + '<button onclick="toggleSettings(true)" style="padding:6px;background:rgba(28,42,56,.06);border-radius:8px;" title="Paramèt">'+gearIcon()+'</button>'
     + '</div>'
     + fullLogo(240)
     + '<p class="mono" style="font-size:10px;color:var(--muted);text-align:center;margin:2px 0 0;">'+t('tagline')+'</p>'
     + '<p style="font-size:12px;color:var(--muted);margin:14px 0 16px;">'+t('dashboard_intro')+'</p>'
+    + trialBanner
     + summaryCards
-    + '<button class="btn btn-primary disp" style="width:100%;justify-content:center;padding:13px;margin-bottom:10px;font-size:13px;" onclick="createProject()">'+plusIcon()+' '+t('btn_nouvoPwoje')+'</button>'
+    + (isReadOnlyMode()
+        ? '<button class="btn btn-primary disp" style="width:100%;justify-content:center;padding:13px;margin-bottom:10px;font-size:13px;opacity:.4;cursor:not-allowed;" disabled title="Renouvle abònman w pou kreye nouvo pwojè">'+plusIcon()+' '+t('btn_nouvoPwoje')+'</button>'
+        : '<button class="btn btn-primary disp" style="width:100%;justify-content:center;padding:13px;margin-bottom:10px;font-size:13px;" onclick="createProject()">'+plusIcon()+' '+t('btn_nouvoPwoje')+'</button>')
     + '<div style="display:flex;gap:8px;margin-bottom:18px;">'
       + '<button class="btn btn-ghost disp" style="flex:1;justify-content:center;font-size:11px;" onclick="exportBackup()">'+downloadIcon()+' '+t('btn_ekspòte')+'</button>'
-      + '<label class="btn btn-ghost disp" style="flex:1;justify-content:center;font-size:11px;">'+uploadIcon()+' '+t('btn_enpòte')+'<input type="file" accept="application/json" style="display:none;" onchange="importBackup(this.files[0])"></label>'
+      + (isReadOnlyMode()
+          ? '<button class="btn btn-ghost disp" style="flex:1;justify-content:center;font-size:11px;opacity:.4;cursor:not-allowed;" disabled>'+uploadIcon()+' '+t('btn_enpòte')+'</button>'
+          : '<label class="btn btn-ghost disp" style="flex:1;justify-content:center;font-size:11px;">'+uploadIcon()+' '+t('btn_enpòte')+'<input type="file" accept="application/json" style="display:none;" onchange="importBackup(this.files[0])"></label>')
     + '</div>'
     + notifSection
     + filterChips
     + rows
     + (S.showSettings ? settingsModal() : '')
+    + confirmModal()
     + '</div>';
 }
 function statCard(label, val, color, wide){
@@ -831,23 +967,125 @@ async function openProject(id){
       if(S.current.dateFen===undefined) S.current.dateFen='';
       if(S.current.obsèvasyon===undefined) S.current.obsèvasyon='';
       (S.current.phases||[]).forEach(function(ph){ if(ph.avansman===undefined) ph.avansman=0; });
-      S.active = 0; S.view='editor'; render();
+      S.active = 0; S.clientInfoOpen=false; S.progressOpen=false; S.view='editor'; render();
     }
   }catch(e){}
 }
-function createProject(){ S.current = freshProject(); S.active=0; S.view='editor'; render(); addNotif('Nouvo pwojè kreye ('+S.current.devisNo+')'); }
-async function deleteProject(id){
+function createProject(){ if(blockIfReadOnly()) return; S.current = freshProject(); S.active=0; S.clientInfoOpen=false; S.progressOpen=false; S.view='editor'; render(); addNotif('Nouvo pwojè kreye ('+S.current.devisNo+')'); }
+var TRASH_DAYS = 15;
+function deleteProject(id){
+  if(blockIfReadOnly()) return;
   var entry = (S.index||[]).find(function(p){return p.id===id;});
+  askConfirm(
+    'Efase "'+((entry&&entry.projet)||'pwojè sa a')+'"? Li ap ale nan Kòbèy pou '+TRASH_DAYS+' jou anvan li efase definitivman — ou ka retabli l pandan tan sa a.',
+    function(){ trashProject(id); },
+    { yesLabel:'Voye nan Kòbèy' }
+  );
+}
+async function trashProject(id){
+  if(blockIfReadOnly()) return;
+  var ts = Date.now();
+  try{
+    var r = await window.storage.get('devis:data:'+id);
+    if(r){
+      var proj = JSON.parse(r.value);
+      proj.deletedAt = ts;
+      await window.storage.set('devis:data:'+id, JSON.stringify(proj));
+      pushProjectToCloud(proj);
+    }
+  }catch(e){}
+  try{
+    var list = S.index||[];
+    var idx = list.findIndex(function(p){return p.id===id;});
+    var entry = idx>=0 ? list[idx] : null;
+    if(entry) entry.deletedAt = ts;
+    await saveIndex(list);
+    S.index = list;
+    pushIndexToCloud();
+    render();
+    addNotif('Pwojè voye nan Kòbèy: '+(entry?entry.projet:'san non'));
+  }catch(e){}
+}
+async function restoreProject(id){
+  if(blockIfReadOnly()) return;
+  try{
+    var r = await window.storage.get('devis:data:'+id);
+    if(r){
+      var proj = JSON.parse(r.value);
+      delete proj.deletedAt;
+      await window.storage.set('devis:data:'+id, JSON.stringify(proj));
+      pushProjectToCloud(proj);
+    }
+  }catch(e){}
+  try{
+    var list = S.index||[];
+    var idx = list.findIndex(function(p){return p.id===id;});
+    var entry = idx>=0 ? list[idx] : null;
+    if(entry) delete entry.deletedAt;
+    await saveIndex(list);
+    S.index = list;
+    pushIndexToCloud();
+    render();
+    addNotif('Pwojè retabli: '+(entry?entry.projet:'san non'));
+  }catch(e){}
+}
+function permanentDeleteProject(id){
+  if(blockIfReadOnly()) return;
+  var entry = (S.index||[]).find(function(p){return p.id===id;});
+  askConfirm(
+    'Efase "'+((entry&&entry.projet)||'pwojè sa a')+'" DEFINITIVMAN? Aksyon sa a PA KA anile — done yo ap disparèt nèt.',
+    function(){ hardDeleteProject(id); },
+    { yesLabel:'Efase Definitivman' }
+  );
+}
+async function hardDeleteProject(id, silent){
   try{ await window.storage.delete('devis:data:'+id); }catch(e){}
   var list = (S.index||[]).filter(function(p){return p.id!==id;});
   await saveIndex(list);
   S.index = list;
   pushDeleteProjectToCloud(id);
   pushIndexToCloud();
-  render();
-  addNotif('Pwojè efase: '+(entry?entry.projet:'san non'));
+  if(!silent){ render(); addNotif('Pwojè efase definitivman.'); }
+}
+async function purgeOldTrash(){
+  var list = S.index || await loadIndex();
+  var now = Date.now();
+  var maxAge = TRASH_DAYS*24*60*60*1000;
+  var expired = list.filter(function(p){ return p.deletedAt && (now-p.deletedAt)>maxAge; });
+  for(var i=0;i<expired.length;i++){ await hardDeleteProject(expired[i].id, true); }
+  if(expired.length>0) render();
+}
+function openTrashView(){ S.view='trash'; render(); }
+function closeTrashView(){ S.view='list'; render(); }
+function renderTrash(){
+  var all = (S.index||[]).filter(function(p){return p.deletedAt;}).sort(function(a,b){return b.deletedAt-a.deletedAt;});
+  var rows = all.length===0
+    ? '<div style="text-align:center;padding:40px 0;color:var(--muted);font-size:13px;">Kòbèy la vid.</div>'
+    : all.map(function(p){
+        var maxAge = TRASH_DAYS*24*60*60*1000;
+        var daysLeft = Math.max(0, Math.ceil((p.deletedAt+maxAge-Date.now())/(1000*60*60*24)));
+        return '<div class="card" style="margin-bottom:8px;">'
+          + '<p style="font-size:13px;font-weight:500;margin:0;">'+esc(p.projet)+'</p>'
+          + '<p class="mono" style="font-size:10px;color:var(--muted);margin:3px 0 0;">'+esc(p.devisNo||'')+' · Efase '+new Date(p.deletedAt).toLocaleDateString('fr-HT')+'</p>'
+          + '<p class="mono" style="font-size:9px;color:#C0392B;margin:3px 0 0;">Efase definitivman nan '+daysLeft+' jou</p>'
+          + '<div style="display:flex;gap:6px;margin-top:10px;">'
+            + '<button class="btn btn-ghost disp" style="flex:1;justify-content:center;font-size:11px;" onclick="restoreProject(\''+p.id+'\')">'+downloadIcon()+' Retabli</button>'
+            + '<button class="btn btn-ghost disp" style="flex:1;justify-content:center;font-size:11px;color:#C0392B;" onclick="permanentDeleteProject(\''+p.id+'\')">Efase Definitivman</button>'
+          + '</div>'
+        + '</div>';
+      }).join('');
+  return '<div class="wrap" style="padding:24px 16px 40px;">'
+    + '<div style="display:flex;align-items:center;gap:10px;margin-bottom:16px;">'
+      + '<button onclick="closeTrashView()" style="padding:6px;background:rgba(28,42,56,.06);border-radius:8px;">'+backIcon()+'</button>'
+      + '<h1 class="disp" style="font-size:16px;font-weight:700;text-transform:uppercase;margin:0;">Kòbèy</h1>'
+    + '</div>'
+    + '<p style="font-size:12px;color:var(--muted);margin:0 0 16px;">Pwojè yo rete isit pou '+TRASH_DAYS+' jou anvan yo efase definitivman.</p>'
+    + rows
+    + confirmModal()
+    + '</div>';
 }
 async function duplicateProject(id){
+  if(blockIfReadOnly()) return;
   try{
     var r = await window.storage.get('devis:data:'+id);
     if(!r) return;
@@ -881,6 +1119,7 @@ async function exportBackup(){
   }catch(e){ alertMsg('Erè pandan ekspòtasyon an.'); }
 }
 function importBackup(file){
+  if(blockIfReadOnly()) return;
   if(!file) return;
   var reader = new FileReader();
   reader.onload = async function(){
@@ -907,12 +1146,335 @@ function alertMsg(msg){
   setTimeout(function(){ d.remove(); }, 3000);
 }
 
+// ---------------- confirmation modal (used before destructive actions) ----------------
+var S_pendingConfirm = null;
+function askConfirm(message, onYesFn, opts){
+  S_pendingConfirm = { message:message, onYes:onYesFn, danger:(opts&&opts.danger!==false), yesLabel:(opts&&opts.yesLabel)||'Konfime' };
+  render();
+}
+function cancelConfirm(){ S_pendingConfirm = null; render(); }
+function runConfirm(){
+  if(!S_pendingConfirm) return;
+  var fn = S_pendingConfirm.onYes;
+  S_pendingConfirm = null;
+  render();
+  fn();
+}
+function confirmModal(){
+  if(!S_pendingConfirm) return '';
+  return '<div class="modal-backdrop no-print" onclick="if(event.target===this)cancelConfirm()" style="z-index:60;">'
+    + '<div class="modal-sheet" style="text-align:center;">'
+    + '<p style="font-size:14px;line-height:1.5;margin:0 0 18px;">'+esc(S_pendingConfirm.message)+'</p>'
+    + '<div style="display:flex;gap:8px;">'
+      + '<button class="btn btn-ghost disp" style="flex:1;justify-content:center;" onclick="cancelConfirm()">Anile</button>'
+      + '<button class="btn btn-accent disp" style="flex:1;justify-content:center;'+(S_pendingConfirm.danger?'background:#C0392B;':'')+'" onclick="runConfirm()">'+esc(S_pendingConfirm.yesLabel)+'</button>'
+    + '</div></div></div>';
+}
+
 // ---------------- settings modal (company + terms) ----------------
 function toggleSettings(v){
   S.showSettings=v;
   if(v && !S.company){ loadCompany().then(function(c){ S.company=c; S.lang=c.lang||'ht'; render(); }); }
   render();
 }
+// ================= ADMIN PANEL =================
+function openAdminPanel(){
+  S.view='admin'; S.adminUsers=null; S.adminFilter='tout'; S.adminSearch=''; render();
+  loadAdminUsers();
+}
+function closeAdminPanel(){ S.view='list'; render(); }
+async function loadAdminUsers(){
+  if(!window.FB) return;
+  S.adminBusy = true; render();
+  try{ S.adminUsers = await window.FB.listAllSubscriptions(); }
+  catch(e){ S.adminUsers = []; }
+  S.adminBusy = false; render();
+}
+function subStatusOf(u){
+  if(!u.expiresAt) return 'esè';
+  var exp = new Date(u.expiresAt);
+  if(!isNaN(exp.getTime()) && new Date() > exp) return 'ekspire';
+  return (u.plan==='esè') ? 'esè' : 'aktif';
+}
+async function activateSubscription(uid, months){
+  if(!window.FB || !S.adminUsers) return;
+  var u = S.adminUsers.find(function(x){return x.uid===uid;});
+  if(!u) return;
+  var base = new Date();
+  var currentExp = u.expiresAt ? new Date(u.expiresAt) : null;
+  if(currentExp && !isNaN(currentExp.getTime()) && currentExp>base) base = currentExp;
+  base.setMonth(base.getMonth()+months);
+  var updated = Object.assign({}, u, { plan: months>=12?'12mwa':'6mwa', expiresAt: base.toISOString(), activatedAt: new Date().toISOString() });
+  delete updated.uid;
+  try{
+    await window.FB.saveSubscription(uid, updated);
+    var idx = S.adminUsers.findIndex(function(x){return x.uid===uid;});
+    if(idx>=0) S.adminUsers[idx] = Object.assign({uid:uid}, updated);
+    alertMsg('Abònman aktive jiska '+new Date(updated.expiresAt).toLocaleDateString('fr-HT')+'.');
+    render();
+  }catch(e){ alertMsg('Erè pandan aktivasyon an.'); }
+}
+async function suspendSubscription(uid){
+  if(!window.FB || !S.adminUsers) return;
+  var u = S.adminUsers.find(function(x){return x.uid===uid;});
+  if(!u) return;
+  var updated = Object.assign({}, u, { expiresAt: new Date(Date.now()-86400000).toISOString() });
+  delete updated.uid;
+  try{
+    await window.FB.saveSubscription(uid, updated);
+    var idx = S.adminUsers.findIndex(function(x){return x.uid===uid;});
+    if(idx>=0) S.adminUsers[idx] = Object.assign({uid:uid}, updated);
+    alertMsg('Kont la sispann.');
+    render();
+  }catch(e){ alertMsg('Erè pandan operasyon an.'); }
+}
+function renderAdmin(){
+  var all = S.adminUsers || [];
+  var nEse = all.filter(function(u){return subStatusOf(u)==='esè';}).length;
+  var nAktif = all.filter(function(u){return subStatusOf(u)==='aktif';}).length;
+  var nEkspire = all.filter(function(u){return subStatusOf(u)==='ekspire';}).length;
+
+  var filtered = all.filter(function(u){
+    var matchFilter = S.adminFilter==='tout' || subStatusOf(u)===S.adminFilter;
+    var matchSearch = !S.adminSearch || (u.email||'').toLowerCase().indexOf(S.adminSearch.toLowerCase())>=0;
+    return matchFilter && matchSearch;
+  });
+  filtered.sort(function(a,b){ return new Date(a.expiresAt||0) - new Date(b.expiresAt||0); });
+
+  var STATUS_COLORS = { 'esè':'#E8602C', 'aktif':'#2E7D32', 'ekspire':'#C0392B' };
+  var STATUS_LABELS = { 'esè':'Esè', 'aktif':'Aktif', 'ekspire':'Ekspire' };
+
+  var rows = filtered.length===0
+    ? '<div style="text-align:center;padding:40px 0;color:var(--muted);font-size:13px;">'+(S.adminBusy?'Ap chaje...':'Pa gen itilizatè pou filt sa a.')+'</div>'
+    : filtered.map(function(u){
+        var status = subStatusOf(u);
+        var exp = u.expiresAt ? new Date(u.expiresAt) : null;
+        var daysDiff = exp && !isNaN(exp.getTime()) ? Math.ceil((exp-new Date())/(1000*60*60*24)) : null;
+        var daysLabel = daysDiff===null ? '' : (daysDiff>=0 ? daysDiff+' jou rete' : Math.abs(daysDiff)+' jou pase');
+        return '<div class="card" style="margin-bottom:8px;">'
+          + '<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;">'
+            + '<div style="min-width:0;"><p style="font-size:13px;font-weight:600;margin:0;word-break:break-all;">'+esc(u.email||u.uid)+'</p>'
+            + '<p class="mono" style="font-size:9px;color:var(--muted);margin:3px 0 0;">'+(exp?('Ekspire: '+exp.toLocaleDateString('fr-HT')+' · '+daysLabel):'Pa gen dat')+'</p></div>'
+            + '<span class="mono" style="font-size:8px;font-weight:600;text-transform:uppercase;color:#fff;background:'+STATUS_COLORS[status]+';border-radius:4px;padding:2px 6px;flex-shrink:0;">'+STATUS_LABELS[status]+'</span>'
+          + '</div>'
+          + '<div style="display:flex;gap:6px;margin-top:10px;flex-wrap:wrap;">'
+            + '<button class="btn btn-ghost disp" style="font-size:10px;padding:6px 10px;" onclick="activateSubscription(\''+u.uid+'\',6)">+ 6 Mwa</button>'
+            + '<button class="btn btn-ghost disp" style="font-size:10px;padding:6px 10px;" onclick="activateSubscription(\''+u.uid+'\',12)">+ 12 Mwa</button>'
+            + '<button class="btn btn-ghost disp" style="font-size:10px;padding:6px 10px;color:#C0392B;" onclick="suspendSubscription(\''+u.uid+'\')">Sispann</button>'
+          + '</div>'
+        + '</div>';
+      }).join('');
+
+  var filters = [['tout','Tout'],['esè','Esè'],['aktif','Aktif'],['ekspire','Ekspire']];
+  return '<div class="wrap" style="padding:24px 16px 40px;">'
+    + '<div style="display:flex;align-items:center;gap:10px;margin-bottom:16px;">'
+      + '<button onclick="closeAdminPanel()" style="padding:6px;background:rgba(28,42,56,.06);border-radius:8px;">'+backIcon()+'</button>'
+      + '<h1 class="disp" style="font-size:16px;font-weight:700;text-transform:uppercase;margin:0;">Panel Admin</h1>'
+      + '<button onclick="loadAdminUsers()" style="margin-left:auto;padding:6px;background:rgba(28,42,56,.06);border-radius:8px;" title="Rafrechi">'+downloadIcon()+'</button>'
+    + '</div>'
+    + '<button class="btn btn-ghost disp" style="width:100%;justify-content:center;margin-bottom:16px;font-size:12px;" onclick="openPriceLibraryAdmin()">📋 Jere Bibliyotèk Pri Materyèl</button>'
+    + '<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:14px;">'
+      + statCard('Esè', nEse, '#E8602C')
+      + statCard('Aktif', nAktif, '#2E7D32')
+      + statCard('Ekspire', nEkspire, '#C0392B')
+    + '</div>'
+    + '<input value="'+escAttr(S.adminSearch)+'" oninput="S.adminSearch=this.value;render();" placeholder="Chèche pa imèl..." style="width:100%;background:var(--white);border:1px solid var(--line);border-radius:8px;padding:9px 12px;font-size:13px;box-sizing:border-box;margin-bottom:10px;">'
+    + '<div class="scrollx" style="margin-bottom:14px;">'
+      + filters.map(function(f){ return '<button class="chip'+(S.adminFilter===f[0]?' active':'')+'" onclick="S.adminFilter=\''+f[0]+'\';render();">'+f[1]+'</button>'; }).join('')
+    + '</div>'
+    + rows
+    + '</div>';
+}
+
+// ================= BIBLIYOTÈK PRI MATERYÈL =================
+function openPriceLibraryAdmin(){
+  S.view='pricelib';
+  render();
+  ensurePriceLibraryLoaded().then(function(){ render(); });
+}
+function closePriceLibraryAdmin(){ S.view='admin'; render(); }
+
+function addMaterial(){
+  if(blockIfReadOnly()) return;
+  var non = (S.newMatName||'').trim();
+  if(!non){ alertMsg('Antre non materyo a.'); return; }
+  var lib = S.priceLibrary;
+  lib.materials.push({ id:nid(), non:non, inite:(S.newMatUnit||'').trim()||'inite' });
+  S.newMatName=''; S.newMatUnit='';
+  persistPriceLibrary(); render();
+}
+function removeMaterial(id){
+  askConfirm('Efase materyo sa a ap efase tou tout pri ki konekte avè l. Kontinye?', function(){
+    var lib = S.priceLibrary;
+    lib.materials = lib.materials.filter(function(m){return m.id!==id;});
+    lib.prices = lib.prices.filter(function(p){return p.materialId!==id;});
+    persistPriceLibrary(); render();
+  });
+}
+function addSupplier(){
+  if(blockIfReadOnly()) return;
+  var non = (S.newSupName||'').trim();
+  if(!non){ alertMsg('Antre non founisè a.'); return; }
+  var lib = S.priceLibrary;
+  lib.suppliers.push({ id:nid(), non:non, zòn:(S.newSupZone||'').trim(), telefòn:(S.newSupPhone||'').trim(), adrès:(S.newSupAddr||'').trim() });
+  S.newSupName=''; S.newSupZone=''; S.newSupPhone=''; S.newSupAddr='';
+  persistPriceLibrary(); render();
+}
+function removeSupplier(id){
+  askConfirm('Efase founisè sa a ap efase tou tout pri ki konekte avè l. Kontinye?', function(){
+    var lib = S.priceLibrary;
+    lib.suppliers = lib.suppliers.filter(function(s){return s.id!==id;});
+    lib.prices = lib.prices.filter(function(p){return p.supplierId!==id;});
+    persistPriceLibrary(); render();
+  });
+}
+function addPriceEntry(){
+  if(blockIfReadOnly()) return;
+  if(!S.priceFormMat || !S.priceFormSup){ alertMsg('Chwazi yon materyo ak yon founisè.'); return; }
+  var amt = Number(S.priceFormAmt);
+  if(!amt || amt<=0){ alertMsg('Antre yon pri valab.'); return; }
+  var lib = S.priceLibrary;
+  var existing = lib.prices.find(function(p){return p.materialId===S.priceFormMat && p.supplierId===S.priceFormSup && p.tip===S.priceFormType;});
+  if(existing){ existing.pri = amt; }
+  else{ lib.prices.push({ id:nid(), materialId:S.priceFormMat, supplierId:S.priceFormSup, pri:amt, tip:S.priceFormType }); }
+  S.priceFormAmt='';
+  persistPriceLibrary(); render();
+  alertMsg('Pri sovgade.');
+}
+function removePriceEntry(id){
+  var lib = S.priceLibrary;
+  lib.prices = lib.prices.filter(function(p){return p.id!==id;});
+  persistPriceLibrary(); render();
+}
+function renderPriceLibraryAdmin(){
+  var lib = S.priceLibrary;
+  if(!lib){
+    return '<div style="min-height:100vh;display:flex;align-items:center;justify-content:center;">'+glcMark(28)+'</div>';
+  }
+  var matOptions = lib.materials.map(function(m){ return '<option value="'+m.id+'" '+(S.priceFormMat===m.id?'selected':'')+'>'+esc(m.non)+' ('+esc(m.inite)+')</option>'; }).join('');
+  var supOptions = lib.suppliers.map(function(s){ return '<option value="'+s.id+'" '+(S.priceFormSup===s.id?'selected':'')+'>'+esc(s.non)+(s.zòn?(' — '+esc(s.zòn)):'')+'</option>'; }).join('');
+
+  var matList = lib.materials.length===0
+    ? '<p style="font-size:12px;color:var(--muted);">Pa gen materyo ankò.</p>'
+    : lib.materials.map(function(m){
+        return '<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid var(--line);"><span style="font-size:13px;">'+esc(m.non)+' <span class="mono" style="color:var(--muted);font-size:10px;">('+esc(m.inite)+')</span></span><button onclick="removeMaterial(\''+m.id+'\')" style="color:#C0392B;padding:4px;">'+trashIcon()+'</button></div>';
+      }).join('');
+
+  var supList = lib.suppliers.length===0
+    ? '<p style="font-size:12px;color:var(--muted);">Pa gen founisè ankò.</p>'
+    : lib.suppliers.map(function(s){
+        return '<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid var(--line);"><div><p style="font-size:13px;margin:0;">'+esc(s.non)+'</p><p class="mono" style="font-size:9px;color:var(--muted);margin:2px 0 0;">'+esc(s.zòn||'')+(s.telefòn?(' · '+esc(s.telefòn)):'')+'</p></div><button onclick="removeSupplier(\''+s.id+'\')" style="color:#C0392B;padding:4px;">'+trashIcon()+'</button></div>';
+      }).join('');
+
+  var priceList = lib.prices.length===0
+    ? '<p style="font-size:12px;color:var(--muted);">Pa gen pri ankò.</p>'
+    : lib.prices.map(function(p){
+        var mat = lib.materials.find(function(m){return m.id===p.materialId;});
+        var sup = lib.suppliers.find(function(s){return s.id===p.supplierId;});
+        return '<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid var(--line);">'
+          + '<div><p style="font-size:13px;margin:0;">'+esc(mat?mat.non:'?')+' — '+esc(sup?sup.non:'?')+'</p>'
+          + '<p class="mono" style="font-size:9px;color:var(--muted);margin:2px 0 0;">'+esc(sup&&sup.zòn||'')+' · '+(p.tip==='lwe'?'Lokasyon':'Vann')+'</p></div>'
+          + '<div style="display:flex;align-items:center;gap:8px;"><span class="mono" style="font-weight:600;font-size:13px;">'+fmt(p.pri)+' G</span><button onclick="removePriceEntry(\''+p.id+'\')" style="color:#C0392B;padding:4px;">'+trashIcon()+'</button></div>'
+          + '</div>';
+      }).join('');
+
+  return '<div class="wrap" style="padding:24px 16px 40px;">'
+    + '<div style="display:flex;align-items:center;gap:10px;margin-bottom:16px;">'
+      + '<button onclick="closePriceLibraryAdmin()" style="padding:6px;background:rgba(28,42,56,.06);border-radius:8px;">'+backIcon()+'</button>'
+      + '<h1 class="disp" style="font-size:15px;font-weight:700;text-transform:uppercase;margin:0;">Bibliyotèk Pri Materyèl</h1>'
+    + '</div>'
+
+    + '<div class="card" style="margin-bottom:14px;">'
+      + '<p class="mono" style="font-size:11px;font-weight:600;text-transform:uppercase;color:var(--muted);margin:0 0 10px;">Ajoute Materyo</p>'
+      + '<div style="display:grid;grid-template-columns:2fr 1fr;gap:8px;">'
+        + '<input value="'+escAttr(S.newMatName)+'" oninput="S.newMatName=this.value" placeholder="Egz: Siman" style="font-size:13px;background:var(--white);border:1px solid var(--line);border-radius:6px;padding:8px;">'
+        + '<input value="'+escAttr(S.newMatUnit)+'" oninput="S.newMatUnit=this.value" placeholder="Inite (sak, m³...)" style="font-size:13px;background:var(--white);border:1px solid var(--line);border-radius:6px;padding:8px;">'
+      + '</div>'
+      + '<button class="btn btn-accent disp" style="width:100%;justify-content:center;margin-top:8px;font-size:12px;" onclick="addMaterial()">'+plusIcon()+' Ajoute</button>'
+      + '<div style="margin-top:12px;">'+matList+'</div>'
+    + '</div>'
+
+    + '<div class="card" style="margin-bottom:14px;">'
+      + '<p class="mono" style="font-size:11px;font-weight:600;text-transform:uppercase;color:var(--muted);margin:0 0 10px;">Ajoute Founisè / Magazen</p>'
+      + '<input value="'+escAttr(S.newSupName)+'" oninput="S.newSupName=this.value" placeholder="Non magazen/kenkayri" style="width:100%;font-size:13px;background:var(--white);border:1px solid var(--line);border-radius:6px;padding:8px;box-sizing:border-box;margin-bottom:8px;">'
+      + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">'
+        + '<input value="'+escAttr(S.newSupZone)+'" oninput="S.newSupZone=this.value" placeholder="Zòn/Depatman" style="font-size:13px;background:var(--white);border:1px solid var(--line);border-radius:6px;padding:8px;">'
+        + '<input value="'+escAttr(S.newSupPhone)+'" oninput="S.newSupPhone=this.value" placeholder="Telefòn" style="font-size:13px;background:var(--white);border:1px solid var(--line);border-radius:6px;padding:8px;">'
+      + '</div>'
+      + '<input value="'+escAttr(S.newSupAddr)+'" oninput="S.newSupAddr=this.value" placeholder="Adrès (opsyonèl)" style="width:100%;font-size:13px;background:var(--white);border:1px solid var(--line);border-radius:6px;padding:8px;box-sizing:border-box;margin-top:8px;">'
+      + '<button class="btn btn-accent disp" style="width:100%;justify-content:center;margin-top:8px;font-size:12px;" onclick="addSupplier()">'+plusIcon()+' Ajoute</button>'
+      + '<div style="margin-top:12px;">'+supList+'</div>'
+    + '</div>'
+
+    + '<div class="card" style="margin-bottom:14px;">'
+      + '<p class="mono" style="font-size:11px;font-weight:600;text-transform:uppercase;color:var(--muted);margin:0 0 10px;">Ajoute Pri</p>'
+      + (lib.materials.length===0 || lib.suppliers.length===0
+          ? '<p style="font-size:12px;color:var(--muted);">Ajoute omwen yon materyo ak yon founisè anvan.</p>'
+          : ('<select onchange="S.priceFormMat=this.value" style="width:100%;font-size:13px;background:var(--white);border:1px solid var(--line);border-radius:6px;padding:8px;margin-bottom:8px;"><option value="">— Chwazi Materyo —</option>'+matOptions+'</select>'
+          + '<select onchange="S.priceFormSup=this.value" style="width:100%;font-size:13px;background:var(--white);border:1px solid var(--line);border-radius:6px;padding:8px;margin-bottom:8px;"><option value="">— Chwazi Founisè —</option>'+supOptions+'</select>'
+          + '<div style="display:flex;gap:6px;margin-bottom:8px;">'
+            + '<button onclick="S.priceFormType=\'vann\';render();" class="chip'+(S.priceFormType==='vann'?' active':'')+'" style="flex:1;justify-content:center;">Vann</button>'
+            + '<button onclick="S.priceFormType=\'lwe\';render();" class="chip'+(S.priceFormType==='lwe'?' active':'')+'" style="flex:1;justify-content:center;">Lokasyon</button>'
+          + '</div>'
+          + '<input type="number" value="'+escAttr(S.priceFormAmt)+'" oninput="S.priceFormAmt=this.value" placeholder="Pri (Goud)" style="width:100%;font-size:13px;background:var(--white);border:1px solid var(--line);border-radius:6px;padding:8px;box-sizing:border-box;">'
+          + '<button class="btn btn-accent disp" style="width:100%;justify-content:center;margin-top:8px;font-size:12px;" onclick="addPriceEntry()">'+plusIcon()+' Sovgade Pri</button>'))
+      + '<div style="margin-top:12px;">'+priceList+'</div>'
+    + '</div>'
+    + confirmModal()
+    + '</div>';
+}
+
+// ---- User-facing picker: choose a price from the library to fill an item's Pri Materyo ----
+function openPricePicker(itemId){
+  S.showPricePicker = true;
+  S.pricePickerItemId = itemId;
+  S.pricePickerSearch = '';
+  render();
+  ensurePriceLibraryLoaded().then(function(){ render(); });
+}
+function closePricePicker(){ S.showPricePicker=false; S.pricePickerItemId=null; render(); }
+function applyPriceFromLibrary(materialId, supplierId, price, unit){
+  if(blockIfReadOnly()){ closePricePicker(); return; }
+  var itemId = S.pricePickerItemId;
+  if(itemId){
+    updItem(itemId, 'pm', price);
+    if(unit){
+      var ph = S.current.phases[S.active];
+      var it = ph.items.find(function(x){return x.id===itemId;});
+      if(it && !it.u){ it.u = unit; }
+    }
+  }
+  closePricePicker();
+}
+function pricePickerModal(){
+  if(!S.showPricePicker) return '';
+  var lib = S.priceLibrary;
+  if(!lib){
+    return '<div class="modal-backdrop no-print" onclick="if(event.target===this)closePricePicker()"><div class="modal-sheet"><div style="text-align:center;padding:20px;">'+glcMark(24)+'</div></div></div>';
+  }
+  var search = (S.pricePickerSearch||'').toLowerCase();
+  var matchedMats = lib.materials.filter(function(m){ return !search || m.non.toLowerCase().indexOf(search)>=0; });
+  var rows = matchedMats.map(function(m){
+    var entries = lib.prices.filter(function(p){return p.materialId===m.id;});
+    if(entries.length===0) return '';
+    var entryRows = entries.map(function(p){
+      var sup = lib.suppliers.find(function(s){return s.id===p.supplierId;});
+      return '<div onclick="applyPriceFromLibrary(\''+m.id+'\',\''+p.supplierId+'\','+p.pri+',\''+esc(m.inite)+'\')" style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--line);cursor:pointer;">'
+        + '<div><p style="font-size:12px;margin:0;">'+esc(sup?sup.non:'?')+'</p><p class="mono" style="font-size:9px;color:var(--muted);margin:2px 0 0;">'+esc(sup&&sup.zòn||'')+' · '+(p.tip==='lwe'?'Lokasyon':'Vann')+'</p></div>'
+        + '<span class="mono" style="font-weight:600;font-size:13px;color:var(--accent);">'+fmt(p.pri)+' G</span>'
+        + '</div>';
+    }).join('');
+    return '<div style="margin-bottom:14px;"><p style="font-size:13px;font-weight:600;margin:0 0 4px;">'+esc(m.non)+' <span class="mono" style="font-size:10px;color:var(--muted);">('+esc(m.inite)+')</span></p>'+entryRows+'</div>';
+  }).join('');
+  if(!rows) rows = '<p style="font-size:12px;color:var(--muted);text-align:center;padding:20px 0;">Pa gen pri ki koresponn. Kontakte administratè a pou ajoute nan bibliyotèk la.</p>';
+  return '<div class="modal-backdrop no-print" onclick="if(event.target===this)closePricePicker()">'
+    + '<div class="modal-sheet">'
+    + '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;"><h3 class="disp" style="font-size:15px;font-weight:600;text-transform:uppercase;margin:0;">Chwazi Pri</h3><button onclick="closePricePicker()">'+closeIcon()+'</button></div>'
+    + '<input value="'+escAttr(S.pricePickerSearch)+'" oninput="S.pricePickerSearch=this.value;render();" placeholder="Chèche yon materyo..." style="width:100%;font-size:13px;background:var(--white);border:1px solid var(--line);border-radius:8px;padding:9px;box-sizing:border-box;margin-bottom:14px;">'
+    + '<div style="max-height:50vh;overflow-y:auto;">'+rows+'</div>'
+    + '</div></div>';
+}
+
 function cloudSyncPanel(){
   if(S.user){
     return '<div class="card" style="margin-bottom:14px;border-color:rgba(46,125,50,.25);background:linear-gradient(180deg,rgba(46,125,50,.07),rgba(46,125,50,.02));">'
@@ -994,10 +1556,11 @@ function settingsModal(){
   + '<div class="field" style="margin-top:8px;"><label>'+t('settings_tel')+'</label><input value="'+escAttr(c.tel)+'" oninput="S.company.tel=this.value" style="width:100%;background:var(--white);border:1px solid var(--line);border-radius:6px;padding:8px;"></div>'
   + '<div class="field" style="margin-top:8px;"><label>'+t('settings_adres')+'</label><input value="'+escAttr(c.adres)+'" oninput="S.company.adres=this.value" style="width:100%;background:var(--white);border:1px solid var(--line);border-radius:6px;padding:8px;"></div>'
   + '<div class="field" style="margin-top:8px;"><label>'+t('settings_kondisyon')+'</label><textarea rows="5" oninput="S.company.kondisyon=this.value">'+esc(c.kondisyon)+'</textarea></div>'
-  + '<button class="btn btn-accent disp" style="width:100%;justify-content:center;margin-top:12px;" onclick="saveCompany(S.company).then(function(){pushCompanyToCloud();toggleSettings(false);alertMsg(t(\'settings_saved\'));})">'+t('settings_save')+'</button>'
+  + '<button class="btn btn-accent disp" style="width:100%;justify-content:center;margin-top:12px;" onclick="if(blockIfReadOnly())return;saveCompany(S.company).then(function(){pushCompanyToCloud();toggleSettings(false);alertMsg(t(\'settings_saved\'));})">'+t('settings_save')+'</button>'
   + '</div></div>';
 }
 function handleImageUpload(file, field){
+  if(blockIfReadOnly()) return;
   if(!file) return;
   if(file.size > 400000){ alertMsg('Chwazi yon imaj ki pi piti pase 400 KB (pou l ka senkwonize nan cloud la byen).'); return; }
   var reader = new FileReader();
@@ -1046,8 +1609,8 @@ function renderEditor(){
     + fieldHtml(isFiks?'Kantite (enfo sèlman)':'Kantite','<input type="number" value="'+it.q+'" oninput="updItem(\''+it.id+'\',\'q\',this.value)">')
     + '</div>'
     + '<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-top:8px;">'
-    + fieldHtml(isFiks?'Pri Materyo (Fiks)':'Pri Materyo (× Kantite)','<input type="number" value="'+it.pm+'" oninput="updItem(\''+it.id+'\',\'pm\',this.value)">')
-    + fieldHtml('Pri Men-d\'èv (Fiks)','<input type="number" value="'+it.pmo+'" oninput="updItem(\''+it.id+'\',\'pmo\',this.value)">')
+    + '<div class="field"><label>'+(isFiks?'Pri Materyo (Fiks)':'Pri Materyo (× Kantite)')+'</label><div style="display:flex;gap:4px;"><input type="number" value="'+it.pm+'" oninput="updItem(\''+it.id+'\',\'pm\',this.value)" style="flex:1;min-width:0;"><button onclick="openPricePicker(\''+it.id+'\')" title="Chwazi nan Bibliyotèk Pri" style="flex-shrink:0;background:rgba(232,96,44,.1);color:var(--accent);border-radius:6px;padding:0 8px;font-size:14px;">📋</button></div></div>'
+    + fieldHtml('Pri Men-d\'èv (Fiks, pa miltipliye)','<input type="number" value="'+it.pmo+'" oninput="updItem(\''+it.id+'\',\'pmo\',this.value)">')
     + '<div><label class="mono" style="display:block;font-size:9px;text-transform:uppercase;color:var(--muted);margin-bottom:3px;">Total</label><div id="total-'+it.id+'" class="mono" style="font-size:12px;font-weight:600;background:rgba(28,42,56,.05);border-radius:6px;padding:7px 8px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">'+fmt(itemTotal(it))+'</div></div>'
     + '</div></div>';
   }).join('');
@@ -1070,6 +1633,7 @@ function renderEditor(){
   + '</header>'
 
   + '<div class="no-print wrap" style="padding:0 12px;">'
+    + readOnlyBanner()
     + clientInfoPanel(p)
     + progressPanel(p, totals)
   + '</div>'
@@ -1109,13 +1673,14 @@ function renderEditor(){
   + (S.showCalc ? calcModal(p) : '')
   + (S.showAddPhase ? addPhaseModal() : '')
   + (S.showSettings ? settingsModal() : '')
-  + '';
+  + confirmModal()
+  + pricePickerModal();
 }
 
 function clientInfoPanel(p){
   var open = !!S.clientInfoOpen;
   return '<div class="card" style="margin-top:12px;">'
-    + '<div onclick="S.clientInfoOpen=!S.clientInfoOpen;render();" style="display:flex;justify-content:space-between;align-items:center;cursor:pointer;">'
+    + '<div onclick="toggleClientInfoPanel();" style="display:flex;justify-content:space-between;align-items:center;cursor:pointer;">'
       + '<span style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.03em;color:var(--muted);">Enfo Kliyan &amp; Pwojè</span>'
       + '<span style="color:var(--muted);transform:rotate('+(open?'180':'0')+'deg);transition:transform .15s;">'+chevronIcon()+'</span>'
     + '</div>'
@@ -1176,7 +1741,7 @@ function progressPanel(p, totals){
   }).join('');
 
   return '<div class="card" style="margin-top:12px;">'
-    + '<div onclick="S.progressOpen=!S.progressOpen;render();" style="display:flex;justify-content:space-between;align-items:center;cursor:pointer;">'
+    + '<div onclick="toggleProgressPanel();" style="display:flex;justify-content:space-between;align-items:center;cursor:pointer;">'
       + '<span style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.03em;color:var(--muted);">Swivi Chantye</span>'
       + '<span style="color:var(--muted);transform:rotate('+(open?'180':'0')+'deg);transition:transform .15s;">'+chevronIcon()+'</span>'
     + '</div>'
@@ -1198,6 +1763,7 @@ function progressPanel(p, totals){
 
 // ---------------- item / phase mutation ----------------
 function updItem(id, field, value){
+  if(isReadOnlyMode()) return;
   var ph = S.current.phases[S.active];
   var it = ph.items.find(function(x){return x.id===id;});
   if(!it) return;
@@ -1220,6 +1786,7 @@ function recalcHeaderTotals(){
   if(footEl) footEl.innerHTML = fmt(finalHTG)+' <span style="font-size:12px;">HTG</span>';
 }
 function updPhaseAvansman(idx, value){
+  if(isReadOnlyMode()) return;
   var v = Math.max(0, Math.min(100, Number(value)||0));
   S.current.phases[idx].avansman = v;
   var valEl = document.getElementById('avansman-val-'+idx);
@@ -1238,24 +1805,28 @@ function updPhaseAvansman(idx, value){
   scheduleSave();
 }
 function addItem(seed){
+  if(blockIfReadOnly()) return;
   var ph = S.current.phases[S.active];
   ph.items.push(Object.assign({id:nid(),d:'',u:'m²',q:0,pm:0,pmo:0,tip:'achte',priceMode:'inite'}, seed||{}));
   render(); scheduleSave();
 }
 function removeItem(id){
+  if(blockIfReadOnly()) return;
   var ph = S.current.phases[S.active];
   ph.items = ph.items.filter(function(x){return x.id!==id;});
   render(); scheduleSave();
 }
-function updPhaseLabel(v){ S.current.phases[S.active].label = v; scheduleSave(); }
+function updPhaseLabel(v){ if(isReadOnlyMode()) return; S.current.phases[S.active].label = v; scheduleSave(); }
 function removePhase(){
+  if(blockIfReadOnly()) return;
   if(S.current.phases.length<=1) return;
   S.current.phases.splice(S.active,1);
   S.active = Math.max(0, S.active-1);
   render(); scheduleSave();
 }
-function toggleAddPhase(v){ S.showAddPhase = v; render(); }
+function toggleAddPhase(v){ if(v && blockIfReadOnly()) return; S.showAddPhase = v; render(); }
 function confirmAddPhase(){
+  if(blockIfReadOnly()) return;
   var input = document.getElementById('newPhaseName');
   var name = (input && input.value.trim()) || 'Nouvo Etap';
   var n = nextPhaseNum(S.current.phases);
@@ -1274,6 +1845,7 @@ function addPhaseModal(){
 }
 function setActive(i){ if(i<0||i>=S.current.phases.length) return; S.active=i; render(); }
 function updProj(field, value){
+  if(isReadOnlyMode()) return;
   S.current[field]=value; scheduleSave();
   if(field==='majorasyon'||field==='tauxUSD'||field==='statut'||field==='typeProjet') render();
   if(field==='statut' && value==='fini'){ addNotif('Pwojè fini: '+(S.current.projet||S.current.kliyan||'Pwojè san non')); }
@@ -1732,12 +2304,12 @@ function destRow(opts, selId, onchange, onclick){
 }
 function calcUpd(field,val){ calcState[field]=val; render(); }
 function setCalcTab(t){ calcTab=t; render(); }
-function applyBlok(qty){
+function applyBlok(qty){ if(blockIfReadOnly()) return;
   var d=calcState.destBlok; S.active=d;
   S.current.phases[d].items.push({id:nid(),d:'Blòk beton (kalkile)',u:'pyès',q:qty,pm:75,pmo:20});
   S.showCalc=false; render(); scheduleSave();
 }
-function applyFe(qty){
+function applyFe(qty){ if(blockIfReadOnly()) return;
   var d=calcState.destFe; S.active=d;
   S.current.phases[d].items.push({id:nid(), d:'Fè '+calcState.dyamet+' ('+qty+' bar)', u:'bar', q:qty, pm:0, pmo:0});
   S.showCalc=false; render(); scheduleSave();
@@ -1759,7 +2331,7 @@ function addBetonEntry(){
   render();
 }
 function removeBetonEntry(i){ calcState.betonEntries.splice(i,1); render(); }
-function applyPoto(){
+function applyPoto(){ if(blockIfReadOnly()) return;
   var d=calcState.destPoto; S.active=d;
   var M_TO_FT = 3.28084;
   var pLajeM = (Number(calcState.potoLaje)||0)/100, pEpesM = (Number(calcState.potoEpes)||0)/100;
@@ -1789,7 +2361,7 @@ function applyPoto(){
   S.current.phases[d].items.push({id:nid(), d:'Fè Etriye '+calcState.dyamet+' — Poto', u:'bar', q:etriyeBarNeeded, pm:0, pmo:0});
   S.showCalc=false; render(); scheduleSave();
 }
-function applySemel(){
+function applySemel(){ if(blockIfReadOnly()) return;
   var d=calcState.destSemel; S.active=d;
   var M_TO_FT = 3.28084;
   var sLonge = Number(calcState.semelLonge)||0, sLaje = Number(calcState.semelLaje)||0;
@@ -1816,7 +2388,7 @@ function applySemel(){
   S.current.phases[d].items.push({id:nid(), d:'Fè Kadriyaj '+calcState.dyamet+' — Semèl', u:'bar', q:barNeeded, pm:0, pmo:0});
   S.showCalc=false; render(); scheduleSave();
 }
-function applyBetonTotal(){
+function applyBetonTotal(){ if(blockIfReadOnly()) return;
   var d=calcState.destBeton; S.active=d;
   var t = calcState.betonEntries.reduce(function(a,e){ a.sak+=e.cimentSak; a.sab+=e.sab; a.gravye+=e.gravye; a.dlo+=e.dlo; return a; }, {sak:0,sab:0,gravye:0,dlo:0});
   S.current.phases[d].items.push({id:nid(), d:'Siman ('+(Number(calcState.sakKg)||45)+'kg/sak)', u:'sak', q:t.sak, pm:0, pmo:0});
@@ -1826,24 +2398,24 @@ function applyBetonTotal(){
   calcState.betonEntries = [];
   S.showCalc=false; render(); scheduleSave();
 }
-function applyTol(qty){
+function applyTol(qty){ if(blockIfReadOnly()) return;
   var d=calcState.destTol; S.active=d;
   var label = 'Tòl ('+calcState.tolLongePye+' pye) — kalkile';
   S.current.phases[d].items.push({id:nid(), d:label, u:'fèy', q:qty, pm:600, pmo:150});
   S.showCalc=false; render(); scheduleSave();
 }
-function applyBtu(unit){
+function applyBtu(unit){ if(blockIfReadOnly()) return;
   var d=calcState.destBtu; S.active=d;
   S.current.phases[d].items.push({id:nid(), d:'Klimatizè '+fmt(unit)+' BTU', u:'inite', q:1, pm:0, pmo:0});
   S.showCalc=false; render(); scheduleSave();
 }
-function applyPenti(galonFinal, galonSous){
+function applyPenti(galonFinal, galonSous){ if(blockIfReadOnly()) return;
   var d=calcState.destPenti; S.active=d;
   if(galonSous>0){ S.current.phases[d].items.push({id:nid(), d:'Penti sou-kouche / aprèt (galon)', u:'galon', q:galonSous, pm:900, pmo:150}); }
   S.current.phases[d].items.push({id:nid(), d:'Penti final (galon)', u:'galon', q:galonFinal, pm:1400, pmo:150});
   S.showCalc=false; render(); scheduleSave();
 }
-function applyElektrik(){
+function applyElektrik(){ if(blockIfReadOnly()) return;
   var d=calcState.destElek; S.active=d;
   var elekPwen = Number(calcState.elekPwen)||0;
   var elekPriz = Number(calcState.elekPriz)||0;
@@ -1988,6 +2560,7 @@ function backIcon(){ return '<svg class="icon" viewBox="0 0 24 24"><polyline poi
 function calcIcon(){ return '<svg class="icon" viewBox="0 0 24 24"><rect x="4" y="2" width="16" height="20" rx="2"/><line x1="8" y1="6" x2="16" y2="6"/><line x1="8" y1="14" x2="16" y2="14"/><line x1="8" y1="18" x2="16" y2="18"/></svg>'; }
 function closeIcon(){ return '<svg class="icon" viewBox="0 0 24 24" style="width:20px;height:20px;"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>'; }
 function printIcon(){ return '<svg class="icon" viewBox="0 0 24 24"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>'; }
+function shieldIcon(){ return '<svg class="icon" viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>'; }
 function gearIcon(){ return '<svg class="icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>'; }
 function downloadIcon(){ return '<svg class="icon" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>'; }
 function uploadIcon(){ return '<svg class="icon" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>'; }
@@ -2004,6 +2577,7 @@ function waIcon(){ return '<svg class="icon" viewBox="0 0 24 24" fill="currentCo
   var notifs = await loadNotifs();
   S.notifs = notifs;
   render();
+  purgeOldTrash();
 })();
 
 if('serviceWorker' in navigator){
