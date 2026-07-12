@@ -13,7 +13,7 @@
 <link rel="icon" type="image/png" sizes="32x32" href="icon-32.png">
 <link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
 <link rel="apple-touch-icon" href="icon-180.png">
-<link rel="manifest" href="manifest.json">
+<link rel="manifest" href="Amanifest.json">
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Oswald:wght@500;600;700&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@500;600&display=swap');
 :root{
@@ -44,6 +44,10 @@ input:focus,select:focus,textarea:focus{outline:2px solid var(--accent);outline-
 .chip.done{background:rgba(28,42,56,.06);}
 .scrollx{display:flex;gap:8px;overflow-x:auto;-webkit-overflow-scrolling:touch;}
 .scrollx::-webkit-scrollbar{display:none;}
+input[type="range"]{-webkit-appearance:none;appearance:none;width:100%;height:4px;border-radius:999px;background:rgba(28,42,56,.12);outline:none;margin:0;cursor:pointer;}
+input[type="range"]::-webkit-slider-thumb{-webkit-appearance:none;appearance:none;width:18px;height:18px;border-radius:50%;background:var(--accent);border:3px solid var(--white);box-shadow:0 1px 4px rgba(0,0,0,.25);cursor:pointer;}
+input[type="range"]::-moz-range-thumb{width:18px;height:18px;border-radius:50%;background:var(--accent);border:3px solid var(--white);box-shadow:0 1px 4px rgba(0,0,0,.25);cursor:pointer;}
+input[type="range"]::-moz-range-track{height:4px;border-radius:999px;background:rgba(28,42,56,.12);}
 .modal-backdrop{position:fixed;inset:0;background:rgba(0,0,0,.5);display:flex;align-items:flex-end;z-index:40;}
 .modal-sheet{background:var(--paper);width:100%;max-width:480px;margin:0 auto;border-radius:18px 18px 0 0;max-height:90vh;overflow-y:auto;padding:16px;}
 .icon{width:16px;height:16px;display:inline-block;vertical-align:-3px;stroke:currentColor;stroke-width:2;fill:none;}
@@ -272,6 +276,7 @@ var STATUT_META = {
   fini:     {label:'Fini',     color:'#2E7D32'}
 };
 var TYPE_PROJET_LIST = ['Rezidansyèl','Komèsyal','Piblik / Enstitisyonèl','Endistriyèl','Rénovasyon','Enfrastrikti','Lòt'];
+var COMMON_UNITS = ['sak','m²','m³','ml','pye','pye²','pye³','kg','lb','tòn','galon','lit','pyès','boul','fèy','wòl','forfè','kantite'];
 var ADMIN_EMAILS = ['lumatkervens4@gmail.com','limatkervens@gmail.com'];
 var TRIAL_DAYS = 3;
 
@@ -373,55 +378,55 @@ var DEFAULT_LOGO_B64 = '/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAQDAwMDAgQDAwMEBAQFBgoG
 
 var BASE_PHASES = [
   {key:"teren",n:"01",label:"Preparasyon Teren",items:[
-    {d:"Debouche / Netwayaj teren",u:"m²",q:0,pm:10,pmo:35},
-    {d:"Demolisyon ansyen estrikti",u:"m³",q:0,pm:30,pmo:320},
-    {d:"Nivèlman teren",u:"m²",q:0,pm:15,pmo:45},
-    {d:"Implantasyon / Bòrnaj",u:"forfè",q:0,pm:500,pmo:3000}
+    {d:"Debouche / Netwayaj teren",u:"m²",q:0,pm:0,pmo:0},
+    {d:"Demolisyon ansyen estrikti",u:"m³",q:0,pm:0,pmo:0},
+    {d:"Nivèlman teren",u:"m²",q:0,pm:0,pmo:0},
+    {d:"Implantasyon / Bòrnaj",u:"forfè",q:0,pm:0,pmo:0}
   ]},
   {key:"fouy",n:"02",label:"Fouy",items:[
-    {d:"Fouy fondasyon kontinyèl",u:"m³",q:0,pm:0,pmo:450},
-    {d:"Fouy semèl izole",u:"m³",q:0,pm:0,pmo:500},
-    {d:"Fouy fòs septik",u:"m³",q:0,pm:0,pmo:600},
-    {d:"Chaje ak degaje tè",u:"m³",q:0,pm:0,pmo:300}
+    {d:"Fouy fondasyon kontinyèl",u:"m³",q:0,pm:0,pmo:0},
+    {d:"Fouy semèl izole",u:"m³",q:0,pm:0,pmo:0},
+    {d:"Fouy fòs septik",u:"m³",q:0,pm:0,pmo:0},
+    {d:"Chaje ak degaje tè",u:"m³",q:0,pm:0,pmo:0}
   ]},
   {key:"fondasyon",n:"03",label:"Fondasyon",items:[
-    {d:"Beton pwòp (gwo wòch)",u:"m³",q:0,pm:3800,pmo:700},
-    {d:"Ferayaj fondasyon",u:"kg",q:0,pm:120,pmo:25},
-    {d:"Beton fondasyon (dosaj 350)",u:"m³",q:0,pm:8200,pmo:1300},
-    {d:"Kofraj fondasyon",u:"m²",q:0,pm:250,pmo:300},
-    {d:"Mason moellon / soubasman",u:"m³",q:0,pm:3200,pmo:1000}
+    {d:"Beton pwòp (gwo wòch)",u:"m³",q:0,pm:0,pmo:0},
+    {d:"Ferayaj fondasyon",u:"kg",q:0,pm:0,pmo:0},
+    {d:"Beton fondasyon (dosaj 350)",u:"m³",q:0,pm:0,pmo:0},
+    {d:"Kofraj fondasyon",u:"m²",q:0,pm:0,pmo:0},
+    {d:"Mason moellon / soubasman",u:"m³",q:0,pm:0,pmo:0}
   ]},
   {key:"elevasyon",n:"04",label:"Elevasyon / Mason",items:[
-    {d:"Blòk beton 15cm",u:"pyès",q:0,pm:75,pmo:20},
-    {d:"Mòtye pou mason",u:"m³",q:0,pm:3000,pmo:800},
-    {d:"Poto (beton + fè)",u:"m³",q:0,pm:10000,pmo:2500},
-    {d:"Chenn (beton + fè)",u:"m³",q:0,pm:10000,pmo:2500},
-    {d:"Lento pòt/fenèt",u:"ml",q:0,pm:600,pmo:250}
+    {d:"Blòk beton 15cm",u:"pyès",q:0,pm:0,pmo:0},
+    {d:"Mòtye pou mason",u:"m³",q:0,pm:0,pmo:0},
+    {d:"Poto (beton + fè)",u:"m³",q:0,pm:0,pmo:0},
+    {d:"Chenn (beton + fè)",u:"m³",q:0,pm:0,pmo:0},
+    {d:"Lento pòt/fenèt",u:"ml",q:0,pm:0,pmo:0}
   ]},
   {key:"dal",n:"05",label:"Dal / Planche",items:[
-    {d:"Kofraj dal",u:"m²",q:0,pm:350,pmo:250},
-    {d:"Etayman (chandèl)",u:"forfè",q:0,pm:3000,pmo:5000},
-    {d:"Ferayaj dal",u:"kg",q:0,pm:120,pmo:25},
-    {d:"Beton dal (dosaj 350)",u:"m³",q:0,pm:8500,pmo:1300}
+    {d:"Kofraj dal",u:"m²",q:0,pm:0,pmo:0},
+    {d:"Etayman (chandèl)",u:"forfè",q:0,pm:0,pmo:0},
+    {d:"Ferayaj dal",u:"kg",q:0,pm:0,pmo:0},
+    {d:"Beton dal (dosaj 350)",u:"m³",q:0,pm:0,pmo:0}
   ]},
   {key:"twati",n:"06",label:"Twati",items:[
-    {d:"Chapant (fèm bwa/metal)",u:"m²",q:0,pm:650,pmo:250},
-    {d:"Kouvèti (tòl/panno)",u:"m²",q:0,pm:600,pmo:150},
-    {d:"Gouyti ak plonbri twati",u:"ml",q:0,pm:300,pmo:100}
+    {d:"Chapant (fèm bwa/metal)",u:"m²",q:0,pm:0,pmo:0},
+    {d:"Kouvèti (tòl/panno)",u:"m²",q:0,pm:0,pmo:0},
+    {d:"Gouyti ak plonbri twati",u:"ml",q:0,pm:0,pmo:0}
   ]},
   {key:"finisyon",n:"07",label:"Finisyon",items:[
-    {d:"Krepisaj entèn/ekstèn",u:"m²",q:0,pm:180,pmo:200},
-    {d:"Chap planche",u:"m²",q:0,pm:200,pmo:150},
-    {d:"Karo / Seramik",u:"m²",q:0,pm:700,pmo:250},
-    {d:"Pòt ak fenèt",u:"pyès",q:0,pm:5500,pmo:1000},
-    {d:"Enstalasyon plonbri",u:"forfè",q:0,pm:30000,pmo:15000},
-    {d:"Enstalasyon elektrisite",u:"forfè",q:0,pm:35000,pmo:20000}
+    {d:"Krepisaj entèn/ekstèn",u:"m²",q:0,pm:0,pmo:0},
+    {d:"Chap planche",u:"m²",q:0,pm:0,pmo:0},
+    {d:"Karo / Seramik",u:"m²",q:0,pm:0,pmo:0},
+    {d:"Pòt ak fenèt",u:"pyès",q:0,pm:0,pmo:0},
+    {d:"Enstalasyon plonbri",u:"forfè",q:0,pm:0,pmo:0},
+    {d:"Enstalasyon elektrisite",u:"forfè",q:0,pm:0,pmo:0}
   ]},
   {key:"penti",n:"08",label:"Penti",items:[
-    {d:"Apprèt / penti fondasyon",u:"m²",q:0,pm:90,pmo:30},
-    {d:"Penti final entèn",u:"m²",q:0,pm:130,pmo:50},
-    {d:"Penti final ekstèn",u:"m²",q:0,pm:150,pmo:50},
-    {d:"Penti pòt ak fenèt",u:"pyès",q:0,pm:400,pmo:150}
+    {d:"Apprèt / penti fondasyon",u:"m²",q:0,pm:0,pmo:0},
+    {d:"Penti final entèn",u:"m²",q:0,pm:0,pmo:0},
+    {d:"Penti final ekstèn",u:"m²",q:0,pm:0,pmo:0},
+    {d:"Penti pòt ak fenèt",u:"pyès",q:0,pm:0,pmo:0}
   ]}
 ];
 
@@ -451,7 +456,7 @@ function freshProject(){
 // ---------------- state ----------------
 var S = { view:'list', index:null, current:null, active:0, showSummary:false, showCalc:false, showAddPhase:false, showSettings:false, showAI:false, saving:false, company:null, notifs:null, listFilter:'tout', user:null, authView:'login', authBusy:false, authError:'', authInfo:'', cloudStatus:'', authEmail:'', authPassword:'', signupType:'particulier', signupName:'', signupPhone:'', clientInfoOpen:false, progressOpen:false, notifOpen:false, authChecked:false, lang:'ht', subscription:null, subChecked:false, adminUsers:null, adminBusy:false, adminFilter:'tout', adminSearch:'',
   priceLibrary:null, showPricePicker:false, pricePickerItemId:null, pricePickerSearch:'',
-  newMatName:'', newMatUnit:'', newSupName:'', newSupZone:'', newSupPhone:'', newSupAddr:'',
+  newMatName:'', newMatUnit:'sak', newMatUnitCustom:'', newSupName:'', newSupZone:'', newSupPhone:'', newSupAddr:'',
   priceFormMat:'', priceFormSup:'', priceFormAmt:'', priceFormType:'vann' };
 function updAuthField(f,v){ S['auth'+f]=v; }
 function setLang(lang){
@@ -1214,6 +1219,30 @@ async function activateSubscription(uid, months){
     render();
   }catch(e){ alertMsg('Erè pandan aktivasyon an.'); }
 }
+function activateSubscriptionCustom(uid){
+  var input = document.getElementById('customDays-'+uid);
+  var days = input ? Number(input.value) : 0;
+  if(!days || days<=0){ alertMsg('Antre yon kantite jou valab (pi gran pase 0).'); return; }
+  activateSubscriptionByDays(uid, days);
+}
+async function activateSubscriptionByDays(uid, days){
+  if(!window.FB || !S.adminUsers) return;
+  var u = S.adminUsers.find(function(x){return x.uid===uid;});
+  if(!u) return;
+  var base = new Date();
+  var currentExp = u.expiresAt ? new Date(u.expiresAt) : null;
+  if(currentExp && !isNaN(currentExp.getTime()) && currentExp>base) base = currentExp;
+  base.setDate(base.getDate()+days);
+  var updated = Object.assign({}, u, { plan:'pèsonalize', expiresAt: base.toISOString(), activatedAt: new Date().toISOString() });
+  delete updated.uid;
+  try{
+    await window.FB.saveSubscription(uid, updated);
+    var idx = S.adminUsers.findIndex(function(x){return x.uid===uid;});
+    if(idx>=0) S.adminUsers[idx] = Object.assign({uid:uid}, updated);
+    alertMsg('Abònman aktive pou '+days+' jou, jiska '+new Date(updated.expiresAt).toLocaleDateString('fr-HT')+'.');
+    render();
+  }catch(e){ alertMsg('Erè pandan aktivasyon an.'); }
+}
 async function suspendSubscription(uid){
   if(!window.FB || !S.adminUsers) return;
   var u = S.adminUsers.find(function(x){return x.uid===uid;});
@@ -1262,6 +1291,10 @@ function renderAdmin(){
             + '<button class="btn btn-ghost disp" style="font-size:10px;padding:6px 10px;" onclick="activateSubscription(\''+u.uid+'\',12)">+ 12 Mwa</button>'
             + '<button class="btn btn-ghost disp" style="font-size:10px;padding:6px 10px;color:#C0392B;" onclick="suspendSubscription(\''+u.uid+'\')">Sispann</button>'
           + '</div>'
+          + '<div style="display:flex;gap:6px;margin-top:6px;">'
+            + '<input id="customDays-'+u.uid+'" type="number" placeholder="Kantite jou pèsonalize" style="flex:1;min-width:0;box-sizing:border-box;font-size:11px;background:var(--white);border:1px solid var(--line);border-radius:6px;padding:6px 8px;">'
+            + '<button class="btn btn-ghost disp" style="font-size:10px;padding:6px 10px;flex-shrink:0;" onclick="activateSubscriptionCustom(\''+u.uid+'\')">Aplike</button>'
+          + '</div>'
         + '</div>';
       }).join('');
 
@@ -1298,9 +1331,11 @@ function addMaterial(){
   if(blockIfReadOnly()) return;
   var non = (S.newMatName||'').trim();
   if(!non){ alertMsg('Antre non materyo a.'); return; }
+  var unit = (S.newMatUnit==='lòt') ? (S.newMatUnitCustom||'').trim() : S.newMatUnit;
+  if(!unit){ alertMsg('Ekri inite pèsonalize a.'); return; }
   var lib = S.priceLibrary;
-  lib.materials.push({ id:nid(), non:non, inite:(S.newMatUnit||'').trim()||'inite' });
-  S.newMatName=''; S.newMatUnit='';
+  lib.materials.push({ id:nid(), non:non, inite:unit });
+  S.newMatName=''; S.newMatUnit='sak'; S.newMatUnitCustom='';
   persistPriceLibrary(); render();
 }
 function removeMaterial(id){
@@ -1387,9 +1422,13 @@ function renderPriceLibraryAdmin(){
     + '<div class="card" style="margin-bottom:14px;">'
       + '<p class="mono" style="font-size:11px;font-weight:600;text-transform:uppercase;color:var(--muted);margin:0 0 10px;">Ajoute Materyo</p>'
       + '<div style="display:grid;grid-template-columns:2fr 1fr;gap:8px;">'
-        + '<input value="'+escAttr(S.newMatName)+'" oninput="S.newMatName=this.value" placeholder="Egz: Siman" style="font-size:13px;background:var(--white);border:1px solid var(--line);border-radius:6px;padding:8px;">'
-        + '<input value="'+escAttr(S.newMatUnit)+'" oninput="S.newMatUnit=this.value" placeholder="Inite (sak, m³...)" style="font-size:13px;background:var(--white);border:1px solid var(--line);border-radius:6px;padding:8px;">'
+        + '<input value="'+escAttr(S.newMatName)+'" oninput="S.newMatName=this.value" placeholder="Egz: Siman" style="width:100%;box-sizing:border-box;font-size:13px;background:var(--white);border:1px solid var(--line);border-radius:6px;padding:8px;">'
+        + '<select onchange="S.newMatUnit=this.value;render();" style="width:100%;box-sizing:border-box;font-size:13px;background:var(--white);border:1px solid var(--line);border-radius:6px;padding:8px;">'
+          + COMMON_UNITS.map(function(u){ return '<option value="'+esc(u)+'" '+(S.newMatUnit===u?'selected':'')+'>'+esc(u)+'</option>'; }).join('')
+          + '<option value="lòt" '+(S.newMatUnit==='lòt'?'selected':'')+'>Lòt...</option>'
+        + '</select>'
       + '</div>'
+      + (S.newMatUnit==='lòt' ? '<input value="'+escAttr(S.newMatUnitCustom)+'" oninput="S.newMatUnitCustom=this.value" placeholder="Ekri inite a" style="width:100%;box-sizing:border-box;font-size:13px;background:var(--white);border:1px solid var(--line);border-radius:6px;padding:8px;margin-top:8px;">' : '')
       + '<button class="btn btn-accent disp" style="width:100%;justify-content:center;margin-top:8px;font-size:12px;" onclick="addMaterial()">'+plusIcon()+' Ajoute</button>'
       + '<div style="margin-top:12px;">'+matList+'</div>'
     + '</div>'
@@ -1398,8 +1437,8 @@ function renderPriceLibraryAdmin(){
       + '<p class="mono" style="font-size:11px;font-weight:600;text-transform:uppercase;color:var(--muted);margin:0 0 10px;">Ajoute Founisè / Magazen</p>'
       + '<input value="'+escAttr(S.newSupName)+'" oninput="S.newSupName=this.value" placeholder="Non magazen/kenkayri" style="width:100%;font-size:13px;background:var(--white);border:1px solid var(--line);border-radius:6px;padding:8px;box-sizing:border-box;margin-bottom:8px;">'
       + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">'
-        + '<input value="'+escAttr(S.newSupZone)+'" oninput="S.newSupZone=this.value" placeholder="Zòn/Depatman" style="font-size:13px;background:var(--white);border:1px solid var(--line);border-radius:6px;padding:8px;">'
-        + '<input value="'+escAttr(S.newSupPhone)+'" oninput="S.newSupPhone=this.value" placeholder="Telefòn" style="font-size:13px;background:var(--white);border:1px solid var(--line);border-radius:6px;padding:8px;">'
+        + '<input value="'+escAttr(S.newSupZone)+'" oninput="S.newSupZone=this.value" placeholder="Zòn/Depatman" style="width:100%;box-sizing:border-box;font-size:13px;background:var(--white);border:1px solid var(--line);border-radius:6px;padding:8px;">'
+        + '<input value="'+escAttr(S.newSupPhone)+'" oninput="S.newSupPhone=this.value" placeholder="Telefòn" style="width:100%;box-sizing:border-box;font-size:13px;background:var(--white);border:1px solid var(--line);border-radius:6px;padding:8px;">'
       + '</div>'
       + '<input value="'+escAttr(S.newSupAddr)+'" oninput="S.newSupAddr=this.value" placeholder="Adrès (opsyonèl)" style="width:100%;font-size:13px;background:var(--white);border:1px solid var(--line);border-radius:6px;padding:8px;box-sizing:border-box;margin-top:8px;">'
       + '<button class="btn btn-accent disp" style="width:100%;justify-content:center;margin-top:8px;font-size:12px;" onclick="addSupplier()">'+plusIcon()+' Ajoute</button>'
@@ -1594,6 +1633,7 @@ function renderEditor(){
     return '<div class="card" style="margin-bottom:10px;">'
     + '<div style="display:flex;align-items:flex-start;gap:8px;">'
     + '<input value="'+escAttr(it.d)+'" oninput="updItem(\''+it.id+'\',\'d\',this.value)" placeholder="Deziyasyon travay la" style="flex:1;font-size:13px;font-weight:500;background:transparent;border:none;padding:2px 0;">'
+    + '<button class="no-print" onclick="openPricePicker(\''+it.id+'\')" title="Pri Materyo — Bibliyotèk" style="color:var(--accent);background:rgba(232,96,44,.1);border-radius:6px;padding:2px 6px;flex-shrink:0;font-size:14px;">🏷️</button>'
     + '<button class="no-print" onclick="removeItem(\''+it.id+'\')" style="color:rgba(28,42,56,.3);padding:2px;flex-shrink:0;">'+trashIcon()+'</button>'
     + '</div>'
     + '<div style="display:flex;gap:6px;margin-top:6px;flex-wrap:wrap;align-items:center;">'
@@ -1601,7 +1641,7 @@ function renderEditor(){
       + '<button class="chip'+(tip==='lokasyon'?' active':'')+'" style="padding:3px 10px;font-size:10px;" onclick="updItem(\''+it.id+'\',\'tip\',\'lokasyon\');render();">Lokasyon</button>'
       + '<select onchange="updItem(\''+it.id+'\',\'priceMode\',this.value);render();" style="margin-left:auto;font-size:10px;font-family:Inter,sans-serif;background:rgba(28,42,56,.06);border:1px solid var(--line);border-radius:999px;padding:4px 8px;color:var(--ink);">'
         + '<option value="inite" '+(!isFiks?'selected':'')+'>Materyo × Kantite</option>'
-        + '<option value="fiks" '+(isFiks?'selected':'')+'>Tout Fiks</option>'
+        + '<option value="fiks" '+(isFiks?'selected':'')+'>Tout Fiks (san miltiplikasyon)</option>'
       + '</select>'
     + '</div>'
     + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px;">'
@@ -1609,8 +1649,8 @@ function renderEditor(){
     + fieldHtml(isFiks?'Kantite (enfo sèlman)':'Kantite','<input type="number" value="'+it.q+'" oninput="updItem(\''+it.id+'\',\'q\',this.value)">')
     + '</div>'
     + '<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-top:8px;">'
-    + '<div class="field"><label>'+(isFiks?'Pri Materyo (Fiks)':'Pri Materyo (× Kantite)')+'</label><div style="display:flex;gap:4px;"><input type="number" value="'+it.pm+'" oninput="updItem(\''+it.id+'\',\'pm\',this.value)" style="flex:1;min-width:0;"><button onclick="openPricePicker(\''+it.id+'\')" title="Chwazi nan Bibliyotèk Pri" style="flex-shrink:0;background:rgba(232,96,44,.1);color:var(--accent);border-radius:6px;padding:0 8px;font-size:14px;">📋</button></div></div>'
-    + fieldHtml('Pri Mendèv (Fiks)','<input type="number" value="'+it.pmo+'" oninput="updItem(\''+it.id+'\',\'pmo\',this.value)">')
+    + fieldHtml(isFiks?'Pri Materyo (Fiks)':'Pri Materyo (× Kantite)','<input type="number" value="'+it.pm+'" oninput="updItem(\''+it.id+'\',\'pm\',this.value)">')
+    + fieldHtml('Pri Men-d\'èv (Fiks, pa miltipliye)','<input type="number" value="'+it.pmo+'" oninput="updItem(\''+it.id+'\',\'pmo\',this.value)">')
     + '<div><label class="mono" style="display:block;font-size:9px;text-transform:uppercase;color:var(--muted);margin-bottom:3px;">Total</label><div id="total-'+it.id+'" class="mono" style="font-size:12px;font-weight:600;background:rgba(28,42,56,.05);border-radius:6px;padding:7px 8px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">'+fmt(itemTotal(it))+'</div></div>'
     + '</div></div>';
   }).join('');
@@ -2570,6 +2610,14 @@ function sendIcon(){ return '<svg class="icon" viewBox="0 0 24 24"><line x1="22"
 function waIcon(){ return '<svg class="icon" viewBox="0 0 24 24" fill="currentColor" stroke="none"><path d="M12 2a10 10 0 0 0-8.6 15L2 22l5.2-1.4A10 10 0 1 0 12 2zm0 18a8 8 0 0 1-4.1-1.1l-.3-.2-3 .8.8-2.9-.2-.3A8 8 0 1 1 12 20zm4.4-6c-.2-.1-1.4-.7-1.6-.8-.2-.1-.4-.1-.5.1-.2.2-.6.8-.8 1-.1.2-.3.2-.5.1-.2-.1-1-.4-1.9-1.2-.7-.6-1.2-1.4-1.3-1.6-.1-.2 0-.3.1-.5.1-.1.2-.3.4-.4.1-.1.2-.2.2-.4.1-.1 0-.3 0-.4-.1-.1-.5-1.3-.7-1.7-.2-.5-.4-.4-.5-.4h-.5c-.2 0-.4.1-.6.3-.2.2-.8.8-.8 1.9s.8 2.2.9 2.4c.1.2 1.6 2.4 3.8 3.4.5.2 1 .4 1.3.5.5.2 1 .1 1.4.1.4-.1 1.4-.6 1.6-1.1.2-.5.2-1 .1-1.1 0-.1-.2-.2-.4-.3z"/></svg>'; }
 
 // ---------------- boot ----------------
+// Auto-select the content of number fields on focus, so typing over a default "0"
+// (or any existing value) replaces it cleanly instead of appending to it.
+document.addEventListener('focusin', function(e){
+  if(e.target && e.target.tagName==='INPUT' && e.target.type==='number'){
+    try{ e.target.select(); }catch(err){}
+  }
+});
+
 (async function(){
   render();
   var idx = await loadIndex();
