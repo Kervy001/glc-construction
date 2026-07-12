@@ -1649,7 +1649,7 @@ function renderEditor(){
     + fieldHtml(isFiks?'Kantite (enfo sèlman)':'Kantite','<input type="number" value="'+it.q+'" oninput="updItem(\''+it.id+'\',\'q\',this.value)">')
     + '</div>'
     + '<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-top:8px;">'
-    + fieldHtml(isFiks?'Pri Materyo (Fiks)':'Pri Materyo (× Kantite)','<input type="number" value="'+it.pm+'" oninput="updItem(\''+it.id+'\',\'pm\',this.value)">')
+    + fieldHtml(isFiks?'Pri Materyo (Fiks)':'Pri M.(× Kantite)','<input type="number" value="'+it.pm+'" oninput="updItem(\''+it.id+'\',\'pm\',this.value)">')
     + fieldHtml('Pri Mendèv (Fiks)','<input type="number" value="'+it.pmo+'" oninput="updItem(\''+it.id+'\',\'pmo\',this.value)">')
     + '<div><label class="mono" style="display:block;font-size:9px;text-transform:uppercase;color:var(--muted);margin-bottom:3px;">Total</label><div id="total-'+it.id+'" class="mono" style="font-size:12px;font-weight:600;background:rgba(28,42,56,.05);border-radius:6px;padding:7px 8px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">'+fmt(itemTotal(it))+'</div></div>'
     + '</div></div>';
