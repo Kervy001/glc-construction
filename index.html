@@ -1038,7 +1038,7 @@ function permanentDeleteProject(id){
   if(blockIfReadOnly()) return;
   var entry = (S.index||[]).find(function(p){return p.id===id;});
   askConfirm(
-    'Efase "'+((entry&&entry.projet)||'pwojè sa a')+'" DEFINITIVMAN? Aksyon sa a PA KA anile — done yo ap disparèt nèt.',
+    'Efase "'+((entry&&entry.projet)||'pwojè sa a')+'" DEFINITIVMAN? Aksyon sa a PA KA anile, done yo ap disparèt nèt.',
     function(){ hardDeleteProject(id); },
     { yesLabel:'Efase Definitivman' }
   );
