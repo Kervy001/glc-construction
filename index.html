@@ -384,21 +384,21 @@ var BASE_PHASES = [
     {d:"Implantasyon / Bòrnaj",u:"forfè",q:0,pm:0,pmo:0}
   ]},
   {key:"fouy",n:"02",label:"Fouy",items:[
-    {d:"Fouy fondasyon kontinyèl",u:"m³",q:0,pm:0,pmo:0},
+    {d:"Fouy fondasyon(Rigòl)",u:"m³",q:0,pm:0,pmo:0},
     {d:"Fouy semèl izole",u:"m³",q:0,pm:0,pmo:0},
     {d:"Fouy fòs septik",u:"m³",q:0,pm:0,pmo:0},
     {d:"Chaje ak degaje tè",u:"m³",q:0,pm:0,pmo:0}
   ]},
   {key:"fondasyon",n:"03",label:"Fondasyon",items:[
-    {d:"Beton pwòp (gwo wòch)",u:"m³",q:0,pm:0,pmo:0},
+    {d:"Beton pwòprete",u:"m³",q:0,pm:0,pmo:0},
     {d:"Ferayaj fondasyon",u:"kg",q:0,pm:0,pmo:0},
     {d:"Beton fondasyon (dosaj 350)",u:"m³",q:0,pm:0,pmo:0},
     {d:"Kofraj fondasyon",u:"m²",q:0,pm:0,pmo:0},
     {d:"Mason moellon / soubasman",u:"m³",q:0,pm:0,pmo:0}
   ]},
   {key:"elevasyon",n:"04",label:"Elevasyon / Mason",items:[
-    {d:"Blòk beton 15cm",u:"pyès",q:0,pm:0,pmo:0},
-    {d:"Mòtye pou mason",u:"m³",q:0,pm:0,pmo:0},
+    {d:"Blòk beton",u:"pyès",q:0,pm:0,pmo:0},
+    {d:"Mòtye pou blòk",u:"m³",q:0,pm:0,pmo:0},
     {d:"Poto (beton + fè)",u:"m³",q:0,pm:0,pmo:0},
     {d:"Chenn (beton + fè)",u:"m³",q:0,pm:0,pmo:0},
     {d:"Lento pòt/fenèt",u:"ml",q:0,pm:0,pmo:0}
@@ -1802,7 +1802,7 @@ function renderEditor(){
       + '<button class="chip'+(tip==='lokasyon'?' active':'')+'" style="padding:3px 10px;font-size:10px;" onclick="updItem(\''+it.id+'\',\'tip\',\'lokasyon\');render();">Lokasyon</button>'
       + '<select onchange="updItem(\''+it.id+'\',\'priceMode\',this.value);render();" style="margin-left:auto;font-size:10px;font-family:Inter,sans-serif;background:rgba(28,42,56,.06);border:1px solid var(--line);border-radius:999px;padding:4px 8px;color:var(--ink);">'
         + '<option value="inite" '+(!isFiks?'selected':'')+'>Materyo × Kantite</option>'
-        + '<option value="fiks" '+(isFiks?'selected':'')+'>Tout Fiks (san miltiplikasyon)</option>'
+        + '<option value="fiks" '+(isFiks?'selected':'')+'>Pri Fiks</option>'
       + '</select>'
     + '</div>'
     + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px;">'
@@ -1810,8 +1810,8 @@ function renderEditor(){
     + fieldHtml(isFiks?'Kantite (enfo sèlman)':'Kantite','<input type="number" value="'+it.q+'" oninput="updItem(\''+it.id+'\',\'q\',this.value)">')
     + '</div>'
     + '<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-top:8px;">'
-    + fieldHtml(isFiks?'Pri Materyo (Fiks)':'Pri Materyo (× Kantite)','<input type="number" value="'+it.pm+'" oninput="updItem(\''+it.id+'\',\'pm\',this.value)">')
-    + fieldHtml('Pri Men-d\'èv (Fiks, pa miltipliye)','<input type="number" value="'+it.pmo+'" oninput="updItem(\''+it.id+'\',\'pmo\',this.value)">')
+    + fieldHtml(isFiks?'Pri M.(Fiks)':'Pri M.(× Kantite)','<input type="number" value="'+it.pm+'" oninput="updItem(\''+it.id+'\',\'pm\',this.value)">')
+    + fieldHtml('Pri Mendèv (Fiks)','<input type="number" value="'+it.pmo+'" oninput="updItem(\''+it.id+'\',\'pmo\',this.value)">')
     + '<div><label class="mono" style="display:block;font-size:9px;text-transform:uppercase;color:var(--muted);margin-bottom:3px;">Total</label><div id="total-'+it.id+'" class="mono" style="font-size:12px;font-weight:600;background:rgba(28,42,56,.05);border-radius:6px;padding:7px 8px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">'+fmt(itemTotal(it))+'</div></div>'
     + '</div></div>';
   }).join('');
