@@ -5,6 +5,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1">
 <title>GLC CONSTRUCTION HT — Metre &amp; Devis</title>
 <meta name="theme-color" content="#16232C">
+<meta name="referrer" content="strict-origin-when-cross-origin">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://www.gstatic.com https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob:; connect-src 'self' https://firestore.googleapis.com https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://www.googleapis.com; frame-src https://accounts.google.com https://glc-construction-ht.firebaseapp.com; object-src 'none'; base-uri 'self';">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -62,6 +64,7 @@ textarea{width:100%;font-size:13px;background:var(--paper);border-radius:6px;pad
   body{background:#fff;}
 }
 </style>
+<script src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.js"></script>
 </head>
 <body>
 <div id="app"></div>
@@ -970,6 +973,7 @@ function renderVerifyEmailGate(){
   render = function(){
     var active = document.activeElement;
     var fname = (active && active.name) ? active.name : null;
+    var wasNumberType = !!(active && active.tagName==='INPUT' && active.type==='number');
     var selStart = null, selEnd = null;
     if(fname && active && typeof active.selectionStart === 'number'){
       try{ selStart = active.selectionStart; selEnd = active.selectionEnd; }catch(e){}
@@ -986,6 +990,20 @@ function renderVerifyEmailGate(){
         el.focus();
         if(selStart!==null && el.setSelectionRange){
           try{ el.setSelectionRange(selStart, selEnd); }catch(e){}
+        } else if(wasNumberType && el.type==='number'){
+          // Number inputs don't expose selectionStart/setSelectionRange in
+          // any browser, so the caret falls back to the start of the value
+          // after each programmatic refocus — every new digit then lands
+          // before what was already typed instead of after it (typing
+          // "1234" renders as "4321"), and backspace misbehaves the same
+          // way. Briefly switching to a text input lets us push the caret
+          // to the end, then we switch the type back.
+          try{
+            var v = el.value;
+            el.type = 'text';
+            el.setSelectionRange(v.length, v.length);
+            el.type = 'number';
+          }catch(e){}
         }
       }
     }
@@ -1254,6 +1272,7 @@ async function duplicateProject(id){
 // ---------------- backup / restore ----------------
 async function exportBackup(){
   try{
+    if(cloudReady()){ await fullCloudSync(); }
     var list = await loadIndex();
     var data = { index:list, projects:{}, company: await loadCompany(), exportedAt: new Date().toISOString() };
     for(var i=0;i<list.length;i++){
@@ -1275,6 +1294,10 @@ function importBackup(file){
   reader.onload = async function(){
     try{
       var data = JSON.parse(reader.result);
+      if(!data || typeof data!=='object' || (!data.index && !data.projects)){
+        alertMsg('Fichye a pa gen fòma yon sovgad GLC Construction. Chwazi fichye .json ki soti nan bouton "Ekspòte Sovgad" la.');
+        return;
+      }
       if(data.company) await saveCompany(data.company);
       var list = data.index || [];
       for(var id in (data.projects||{})){
@@ -1282,9 +1305,23 @@ function importBackup(file){
       }
       await saveIndex(list);
       S.index = list;
-      render();
-      alertMsg('Sovgad la enpòte avèk siksè.');
-    }catch(e){ alertMsg('Fichye a pa valab.'); }
+      if(data.company) S.company = data.company;
+      if(cloudReady()){
+        // Push the restored company/projects up to the account so the
+        // import reaches every device, not just this one, then reconcile
+        // with anything already on the cloud that wasn't in this file.
+        if(data.company){ try{ await window.FB.saveMeta(S.user.uid, 'company', data.company); }catch(e){} }
+        for(var pid in (data.projects||{})){
+          try{ await window.FB.saveProject(S.user.uid, pid, data.projects[pid]); }catch(e){}
+        }
+        try{ await window.FB.saveMeta(S.user.uid, 'index', {list:list}); }catch(e){}
+        await fullCloudSync();
+        alertMsg('Sovgad la enpòte e senkwonize ak kont ou.');
+      } else {
+        render();
+        alertMsg('Sovgad la enpòte lokalman sou aparèy sa a.');
+      }
+    }catch(e){ alertMsg('Fichye a pa valab. Chwazi yon fichye .json ki soti nan bouton "Ekspòte Sovgad" la.'); }
   };
   reader.readAsText(file);
 }
@@ -1896,11 +1933,13 @@ function settingsModal(){
   var PDF_STYLES = [
     ['klasik', 'Klasik', '#FFB200'],
     ['modern', 'Modèn', '#16232C'],
-    ['minimal', 'Minimalis', '#000000']
+    ['minimal', 'Minimalis', '#000000'],
+    ['formal', 'Fòmèl', '#16232C'],
+    ['compact', 'Konpak', '#888888']
   ];
   var curTpl = c.pdfTemplate || 'klasik';
   var pdfStylePicker = '<div class="field" style="margin-top:8px;"><label>'+t('settings_pdfStyle')+'</label>'
-    + '<div style="display:flex;gap:8px;margin-top:6px;">'
+    + '<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-top:6px;">'
     + PDF_STYLES.map(function(s){
         var active = curTpl===s[0];
         return '<button onclick="S.company.pdfTemplate=\''+s[0]+'\';updatePrintSheet();render();" style="flex:1;text-align:left;padding:10px;border-radius:8px;border:2px solid '+(active?'var(--accent)':'var(--line)')+';background:'+(active?'rgba(255,178,0,.10)':'var(--white)')+';">'
@@ -2278,6 +2317,7 @@ function summaryModal(p, totals, sub, majAmt, finalHTG){
   + '<button class="btn" style="flex:1;justify-content:center;background:var(--white);border:1px solid var(--line);" onclick="tryPrint()">'+printIcon()+' Enprime</button>'
   + '<button class="btn btn-accent" style="flex:1;justify-content:center;" onclick="downloadDevisHTML()">'+downloadIcon()+' Telechaje PDF</button>'
   + '</div>'
+  + '<button class="btn btn-ghost disp" style="width:100%;justify-content:center;margin-top:8px;" onclick="exportDevisWord()">'+downloadIcon()+' Telechaje Word (.doc)</button>'
   + '<button class="btn" style="width:100%;justify-content:center;background:#25D366;color:#fff;margin-top:8px;" onclick="shareWhatsapp()">'+waIcon()+' Pataje sou WhatsApp</button>'
   + '<p class="mono" style="font-size:9px;color:var(--muted);text-align:center;margin-top:8px;">Si "Enprime" pa reyaji, sèvi ak "Telechaje PDF" — li louvri nan yon nouvo paj kote ou ka enprime oswa sovgade kòm PDF.</p>'
   + '<p class="mono" style="font-size:10px;color:var(--muted);text-align:center;margin-top:8px;">Devis valab pou '+esc(p.validite||30)+' jou apati '+esc(p.dat||'')+'. Pri yo se estimasyon.</p>'
@@ -2311,6 +2351,32 @@ function downloadDevisHTML(){
     setTimeout(function(){URL.revokeObjectURL(url);}, 10000);
     addNotif('PDF jenere pou devis '+((S.current&&S.current.devisNo)||''));
   }catch(e){ alertMsg('Erè pandan jenerasyon fichye a.'); }
+}
+// Word-compatible export: wraps whichever print style is currently selected
+// in Word's own HTML namespaces and saves it with a .doc extension — Word,
+// LibreOffice, and Google Docs all open this as a normal editable document
+// (no separate document-generation library needed since the print sheet is
+// already plain HTML/tables).
+function exportDevisWord(){
+  try{
+    var sheet = document.getElementById('printSheet');
+    if(!sheet || !sheet.innerHTML){ alertMsg('Pa gen anyen pou telechaje.'); return; }
+    var p = S.current;
+    var doc = '<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word" xmlns="http://www.w3.org/TR/REC-html40">'
+      + '<head><meta charset="utf-8"><title>'+esc((p&&p.devisNo)||'Devis')+'</title>'
+      + '<!--[if gte mso 9]><xml><w:WordDocument><w:View>Print</w:View></w:WordDocument></xml><![endif]-->'
+      + '<style>body{font-family:Calibri,Arial,sans-serif;}</style>'
+      + '</head><body>'
+      + sheet.innerHTML
+      + '</body></html>';
+    var blob = new Blob(['\ufeff', doc], { type: 'application/msword' });
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement('a');
+    a.href = url; a.download = 'Devis-'+((p&&p.devisNo)||'GLC')+'.doc';
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    setTimeout(function(){URL.revokeObjectURL(url);}, 5000);
+    addNotif('Fichye Word jenere pou devis '+((p&&p.devisNo)||''));
+  }catch(e){ alertMsg('Erè pandan jenerasyon fichye Word la.'); }
 }
 function rowLine(label, val){
   return '<div style="display:flex;justify-content:space-between;font-size:13px;"><span style="color:var(--muted);">'+esc(label)+'</span><span class="mono" style="font-weight:500;">'+val+'</span></div>';
@@ -3280,6 +3346,71 @@ function templateMinimal(p, company, totals, sub, majAmt, finalHTG, finalUSD){
   + '</div>';
 }
 
+function templateFormal(p, company, totals, sub, majAmt, finalHTG, finalUSD){
+  var phaseBlocks = p.phases.map(function(ph,i){
+    if(ph.items.length===0 || totals[i]===0) return '';
+    var rows = buildDevisRows(ph, '#ccc');
+    if(!rows) return '';
+    return '<h3 style="font-family:Georgia,serif;font-weight:700;font-size:13px;margin:18px 0 6px;letter-spacing:.02em;">Atik '+ph.n+' — '+esc(ph.label)+'</h3>'
+    + '<table style="width:100%;border-collapse:collapse;font-size:11px;font-family:Georgia,serif;"><thead><tr style="border-top:1px solid #16232C;border-bottom:1px solid #16232C;"><th style="padding:5px 6px;text-align:left;font-weight:700;">'+t('pv_materyèl')+'</th><th style="padding:5px 6px;font-weight:700;">'+t('pv_unite')+'</th><th style="padding:5px 6px;text-align:right;font-weight:700;">'+t('pv_kantite')+'</th><th style="padding:5px 6px;text-align:right;font-weight:700;">'+t('pv_priInite')+'</th><th style="padding:5px 6px;text-align:right;font-weight:700;">'+t('pv_total')+'</th></tr></thead><tbody>'+rows+'</tbody></table>';
+  }).join('');
+  var trancheRows = trancheRowsFor(p, finalHTG);
+  return '<div style="max-width:750px;margin:16px auto;padding:34px;font-family:Georgia,serif;color:#16232C;border:2px solid #16232C;box-shadow:inset 0 0 0 4px #fff, inset 0 0 0 5px #16232C;">'
+  + '<div style="text-align:center;border-bottom:1px solid #16232C;padding-bottom:14px;">'
+    + '<p style="font-size:10px;letter-spacing:.15em;text-transform:uppercase;color:#666;margin:0 0 6px;">Devis Kontraktyèl</p>'
+    + '<p style="font-family:Georgia,serif;font-weight:700;font-size:18px;margin:0;">'+esc(company.non||'GLC Construction HT')+'</p>'
+    + '<p style="font-size:11px;color:#555;margin:4px 0 0;">'+(company.tel?('Tel: '+esc(company.tel)):'')+(company.adres?(' · '+esc(company.adres)):'')+'</p>'
+  + '</div>'
+  + '<div style="display:flex;justify-content:space-between;margin-top:16px;font-size:11px;">'
+    + '<div><strong>N° Devis:</strong> '+esc(p.devisNo)+'<br><strong>Dat:</strong> '+esc(p.dat)+'<br><strong>Valab:</strong> '+esc(p.validite||30)+' '+t('pv_jou')+'</div>'
+    + '<div style="text-align:right;"><strong>Kliyan:</strong> '+esc(p.kliyan||'—')+'<br><strong>Tel:</strong> '+esc(p.telefon||'—')+'<br><strong>Chantye:</strong> '+esc(p.adres||'—')+'</div>'
+  + '</div>'
+  + '<p style="font-size:11px;font-style:italic;color:#444;margin-top:16px;">Nou gen onè soumèt pou pwojè "'+esc(p.projet||'san non')+'" devis ki swiv la, ki detaye materyo, travay ak kondisyon yo.</p>'
+  + phaseBlocks
+  + '<div style="margin-top:20px;padding-top:12px;border-top:1px solid #16232C;font-size:12px;">'
+    + '<div style="display:flex;justify-content:space-between;padding:3px 0;"><span>'+t('pv_soutotal')+'</span><span>'+fmt(sub)+' HTG</span></div>'
+    + '<div style="display:flex;justify-content:space-between;padding:3px 0;"><span>'+t('pv_majorasyon')+' ('+esc(p.majorasyon)+'%)</span><span>'+fmt(majAmt)+' HTG</span></div>'
+    + '<div style="display:flex;justify-content:space-between;padding:8px 0;margin-top:6px;border-top:1px double #16232C;font-weight:700;font-size:16px;"><span>Total Kontra</span><span>'+fmt(finalHTG)+' HTG</span></div>'
+    + '<div style="display:flex;justify-content:flex-end;font-size:11px;color:#666;">≈ $'+fmt(finalUSD)+' USD</div>'
+  + '</div>'
+  + (trancheRows ? ('<div style="margin-top:14px;font-size:12px;"><strong>'+t('pv_echeansye')+'</strong>'+trancheRows+'</div>') : '')
+  + '<div style="margin-top:16px;font-size:10px;color:#444;border-top:1px solid #ccc;padding-top:10px;font-style:italic;">'+esc(company.kondisyon||DEFAULT_TERMS)+'</div>'
+  + '<div style="margin-top:36px;display:flex;justify-content:space-between;font-size:11px;">'
+    + '<div>Fèt nan ' + esc(company.adres||'____________') + ', dat '+esc(p.dat)+'</div>'
+  + '</div>'
+  + devisSignatureBlock(company, '#16232C')
+  + qrVerificationBlock(p, company)
+  + '</div>';
+}
+
+function templateCompact(p, company, totals, sub, majAmt, finalHTG, finalUSD){
+  var phaseBlocks = p.phases.map(function(ph,i){
+    if(ph.items.length===0 || totals[i]===0) return '';
+    var rows = buildDevisRows(ph, '#eee');
+    if(!rows) return '';
+    return '<tr><td colspan="5" style="padding:6px 4px 2px;font-weight:700;font-size:10px;text-transform:uppercase;background:#f2f2f2;">'+ph.n+'. '+esc(ph.label)+'</td></tr>'+rows;
+  }).join('');
+  var trancheRows = trancheRowsFor(p, finalHTG);
+  return '<div style="max-width:750px;margin:0 auto;padding:16px;font-family:Inter,sans-serif;font-size:10px;color:#16232C;line-height:1.3;">'
+  + '<div style="display:flex;justify-content:space-between;border-bottom:1px solid #16232C;padding-bottom:6px;">'
+    + '<strong style="font-size:12px;">'+esc(company.non||'GLC Construction HT')+'</strong>'
+    + '<span>'+t('pv_devisNo')+' '+esc(p.devisNo)+' · '+esc(p.dat)+'</span>'
+  + '</div>'
+  + '<div style="display:flex;justify-content:space-between;margin-top:4px;">'
+    + '<span>'+t('pv_kliyan')+': '+esc(p.kliyan||'—')+' · '+esc(p.telefon||'')+'</span>'
+    + '<span>'+t('pv_pwoje')+': '+esc(p.projet||'—')+'</span>'
+  + '</div>'
+  + '<table style="width:100%;border-collapse:collapse;font-size:10px;margin-top:8px;"><thead><tr style="border-bottom:1px solid #16232C;"><th style="padding:3px 4px;text-align:left;">'+t('pv_materyèl')+'</th><th style="padding:3px 4px;">'+t('pv_unite')+'</th><th style="padding:3px 4px;text-align:right;">'+t('pv_kantite')+'</th><th style="padding:3px 4px;text-align:right;">'+t('pv_priInite')+'</th><th style="padding:3px 4px;text-align:right;">'+t('pv_total')+'</th></tr></thead><tbody>'+phaseBlocks+'</tbody></table>'
+  + '<div style="margin-top:8px;border-top:1px solid #16232C;padding-top:4px;font-size:11px;">'
+    + '<div style="display:flex;justify-content:space-between;"><span>'+t('pv_soutotal')+'</span><span>'+fmt(sub)+' HTG</span></div>'
+    + '<div style="display:flex;justify-content:space-between;"><span>'+t('pv_majorasyon')+' ('+esc(p.majorasyon)+'%)</span><span>'+fmt(majAmt)+' HTG</span></div>'
+    + '<div style="display:flex;justify-content:space-between;font-weight:700;font-size:13px;margin-top:2px;"><span>'+t('pv_totalJeneral')+'</span><span>'+fmt(finalHTG)+' HTG (≈$'+fmt(finalUSD)+')</span></div>'
+  + '</div>'
+  + (trancheRows ? ('<div style="margin-top:6px;font-size:10px;"><strong>'+t('pv_echeansye')+':</strong> '+trancheRows+'</div>') : '')
+  + '<p style="font-size:8px;color:#555;margin-top:8px;">'+esc(company.kondisyon||DEFAULT_TERMS)+'</p>'
+  + '</div>';
+}
+
 function updatePrintSheet(){
   var el = document.getElementById('printSheet');
   if(!el || !S.current) { if(el) el.innerHTML=''; return; }
@@ -3291,15 +3422,21 @@ function updatePrintSheet(){
   var finalUSD = finalHTG/(Number(p.tauxUSD)||1);
   var company = S.company || {tel:'',adres:'',kondisyon:DEFAULT_TERMS};
   var tpl = company.pdfTemplate || 'klasik';
-  var builder = tpl==='modern' ? templateModern : (tpl==='minimal' ? templateMinimal : templateKlasik);
+  var builder = tpl==='modern' ? templateModern : (tpl==='minimal' ? templateMinimal : (tpl==='formal' ? templateFormal : (tpl==='compact' ? templateCompact : templateKlasik)));
   el.innerHTML = builder(p, company, totals, sub, majAmt, finalHTG, finalUSD);
 }
 function qrVerificationBlock(p, company){
   var verifText = (p.devisNo||'')+' | '+(company.non||'')+' | '+(p.kliyan||'')+' | '+p.dat;
-  var qrUrl = 'https://api.qrserver.com/v1/create-qr-code/?size=90x90&data='+encodeURIComponent(verifText);
+  var qrImg = '';
+  try{
+    var qr = qrcode(0, 'M');
+    qr.addData(verifText);
+    qr.make();
+    qrImg = '<img src="'+qr.createDataURL(4,4)+'" style="width:70px;height:70px;flex-shrink:0;" alt="QR Verifikasyon">';
+  }catch(e){ qrImg = ''; }
   return '<div style="margin-top:22px;display:flex;justify-content:space-between;align-items:center;border-top:1px dashed #ccc;padding-top:12px;">'
     + '<div style="font-size:9px;color:#888;line-height:1.5;"><strong>'+t('pv_nimewoDokiman')+':</strong> '+esc(p.devisNo)+'<br><strong>'+t('pv_dokimanJenere')+':</strong> '+esc(p.dat)+'<br>'+t('pv_eskane')+'</div>'
-    + '<img src="'+qrUrl+'" style="width:70px;height:70px;flex-shrink:0;" alt="QR Verifikasyon">'
+    + qrImg
   + '</div>';
 }
 
