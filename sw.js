@@ -3,7 +3,7 @@
 // v2: network-first for same-origin files so new deployments show up immediately;
 // cache is only used as an offline fallback, not as the default source.
 
-var CACHE_NAME = 'glc-construction-ht-v2';
+var CACHE_NAME = 'glc-construction-ht-v4';
 var APP_SHELL = [
   './',
   './index.html',
