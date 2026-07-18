@@ -17,7 +17,7 @@
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@600;700;800&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@500;600&display=swap');
 :root{
-  --ink:#16232C; --paper:#E4EAE6; --accent:#1E5AA1; --accent2:#B14B27; --line:rgba(22,35,44,.14);
+  --ink:#16232C; --paper:#E4EAE6; --accent:#FFB200; --accent2:#B14B27; --line:rgba(22,35,44,.14);
   --muted:rgba(22,35,44,.52); --white:#ffffff;
 }
 *{box-sizing:border-box;}
@@ -35,12 +35,12 @@ input:focus,select:focus,textarea:focus{outline:2px solid var(--accent);outline-
 .field input,.field select{width:100%;font-size:13px;background:var(--paper);border-radius:6px;padding:7px 8px;border:1px solid transparent;}
 .card{background:var(--white);border:1px solid var(--line);border-radius:8px;padding:12px;box-shadow:0 1px 2px rgba(0,0,0,.05);}
 .btn-primary{background:var(--ink);color:var(--paper);}
-.btn-accent{background:var(--accent);color:#fff;}
+.btn-accent{background:var(--accent);color:var(--ink);}
 .btn-ghost{background:rgba(22,35,44,.06);color:var(--ink);}
 .btn{border-radius:7px;padding:10px 16px;font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.04em;display:inline-flex;align-items:center;gap:6px;}
 .btn:disabled{opacity:.3;}
 .chip{flex:0 0 auto;display:flex;align-items:center;gap:6px;padding:8px 12px;border-radius:6px;border:1px solid var(--line);font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.03em;background:var(--white);white-space:nowrap;}
-.chip.active{background:var(--accent);border-color:var(--accent);color:#fff;}
+.chip.active{background:var(--accent);border-color:var(--accent);color:var(--ink);}
 .chip.done{background:rgba(22,35,44,.06);}
 .scrollx{display:flex;gap:8px;overflow-x:auto;-webkit-overflow-scrolling:touch;}
 .scrollx::-webkit-scrollbar{display:none;}
@@ -1007,7 +1007,7 @@ function renderList(){
   var koutTotal = all.reduce(function(s,p){ return s + (Number(p.totalHTG)||0); }, 0);
 
   var summaryCards = '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:14px;">'
-    + statCard(t('stat_aktif'), nAktif, 'var(--accent)')
+    + statCard(t('stat_aktif'), nAktif, 'var(--accent)', false, 'var(--ink)')
     + statCard(t('stat_fini'), nFini, '#2E7D32')
     + statCard(t('stat_devis'), nDevis, 'var(--ink)')
     + statCard(t('stat_koutTotal'), fmt(koutTotal)+' G', 'var(--ink)', true)
@@ -1070,7 +1070,7 @@ function renderList(){
   return '<div class="wrap" style="padding:24px 16px 40px;">'
     + '<div style="display:flex;justify-content:flex-end;align-items:center;gap:8px;margin-bottom:2px;">'
       + (S.user ? '<span class="mono" style="font-size:9px;color:#2E7D32;display:flex;align-items:center;gap:4px;"><span style="width:6px;height:6px;border-radius:50%;background:#2E7D32;"></span>'+esc(S.user.email)+'</span>' : '')
-      + (isAdminUser() ? '<button onclick="openAdminPanel()" style="padding:6px;background:rgba(177,75,39,.12);border-radius:8px;color:var(--accent);" title="Panel Admin">'+shieldIcon()+'</button>' : '')
+      + (isAdminUser() ? '<button onclick="openAdminPanel()" style="padding:6px;background:rgba(255,178,0,.16);border-radius:8px;color:var(--ink);" title="Panel Admin">'+shieldIcon()+'</button>' : '')
       + '<button onclick="openTrashView()" style="position:relative;padding:6px;background:rgba(22,35,44,.06);border-radius:8px;" title="Kòbèy">'+trashIcon()+(trashCount>0?('<span class="mono" style="position:absolute;top:-4px;right:-4px;background:#C0392B;color:#fff;font-size:8px;font-weight:700;border-radius:999px;min-width:15px;height:15px;display:flex;align-items:center;justify-content:center;padding:0 3px;">'+trashCount+'</span>'):'')+'</button>'
       + '<button onclick="toggleSettings(true)" style="padding:6px;background:rgba(22,35,44,.06);border-radius:8px;" title="Paramèt">'+gearIcon()+'</button>'
     + '</div>'
@@ -1095,11 +1095,12 @@ function renderList(){
     + confirmModal()
     + '</div>';
 }
-function statCard(label, val, color, wide){
+function statCard(label, val, color, wide, textColor){
   var base = 'border-left:3px solid '+color+';';
+  var valColor = wide ? 'var(--ink)' : (textColor || color);
   return '<div class="card"'+(wide?' style="'+base+'grid-column:1 / -1;display:flex;justify-content:space-between;align-items:center;"':' style="'+base+'"')+'>'
     + '<p class="mono" style="font-size:9px;text-transform:uppercase;letter-spacing:.03em;color:var(--muted);margin:0;">'+esc(label)+'</p>'
-    + '<p class="disp" style="font-size:'+(wide?'18':'21')+'px;font-weight:700;color:'+(wide?'var(--ink)':color)+';margin:'+(wide?'0':'4px 0 0')+';">'+val+'</p>'
+    + '<p class="disp" style="font-size:'+(wide?'18':'21')+'px;font-weight:700;color:'+valColor+';margin:'+(wide?'0':'4px 0 0')+';">'+val+'</p>'
     + '</div>';
 }
 function setListFilter(f){ S.listFilter=f; render(); }
@@ -1737,7 +1738,7 @@ function pricePickerModal(){
       var sup = lib.suppliers.find(function(s){return s.id===p.supplierId;});
       return '<div onclick="applyPriceFromLibrary(\''+m.id+'\',\''+p.supplierId+'\','+p.pri+',\''+esc(m.inite)+'\')" style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--line);cursor:pointer;">'
         + '<div><p style="font-size:12px;margin:0;">'+esc(sup?sup.non:'?')+'</p><p class="mono" style="font-size:9px;color:var(--muted);margin:2px 0 0;">'+esc(sup&&sup.zòn||'')+' · '+(p.tip==='lwe'?'Lokasyon':'Vann')+'</p></div>'
-        + '<span class="mono" style="font-weight:600;font-size:13px;color:var(--accent);">'+fmt(p.pri)+' G</span>'
+        + '<span class="mono" style="font-weight:600;font-size:13px;color:var(--ink);">'+fmt(p.pri)+' G</span>'
         + '</div>';
     }).join('');
     return '<div style="margin-bottom:14px;"><p style="font-size:13px;font-weight:600;margin:0 0 4px;">'+esc(m.non)+' <span class="mono" style="font-size:10px;color:var(--muted);">('+esc(m.inite)+')</span></p>'+entryRows+'</div>';
@@ -1780,7 +1781,7 @@ function storeCatalogModal(){
           var mat = lib.materials.find(function(m){return m.id===p.materialId;});
           return '<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--line);">'
             + '<div><p style="font-size:13px;margin:0;">'+esc(mat?mat.non:'?')+'</p><p class="mono" style="font-size:9px;color:var(--muted);margin:2px 0 0;">'+(p.tip==='lwe'?'Lokasyon':'Vann')+' · pa '+esc(mat?mat.inite:'')+'</p></div>'
-            + '<span class="mono" style="font-weight:600;font-size:13px;color:var(--accent);">'+fmt(p.pri)+' G</span>'
+            + '<span class="mono" style="font-weight:600;font-size:13px;color:var(--ink);">'+fmt(p.pri)+' G</span>'
             + '</div>';
         }).join('');
     return '<div class="modal-backdrop no-print" onclick="if(event.target===this)closeStoreCatalog()">'
@@ -1843,7 +1844,7 @@ function cloudSyncPanel(){
   );
   return '<div class="card" style="margin-bottom:14px;padding:16px;">'
     + '<div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;">'
-      + '<span style="width:26px;height:26px;border-radius:8px;background:rgba(177,75,39,.1);color:var(--accent);display:flex;align-items:center;justify-content:center;flex-shrink:0;">'+cloudIcon()+'</span>'
+      + '<span style="width:26px;height:26px;border-radius:8px;background:rgba(255,178,0,.16);color:var(--ink);display:flex;align-items:center;justify-content:center;flex-shrink:0;">'+cloudIcon()+'</span>'
       + '<p class="disp" style="font-size:13px;font-weight:600;text-transform:uppercase;letter-spacing:.02em;margin:0;">'+t('cloud_title')+'</p>'
     + '</div>'
     + '<p style="font-size:11px;color:var(--muted);margin:0 0 12px;line-height:1.5;">'+t('cloud_intro')+'</p>'
@@ -1893,7 +1894,7 @@ function settingsModal(){
     + '</div>'
   );
   var PDF_STYLES = [
-    ['klasik', 'Klasik', '#1E5AA1'],
+    ['klasik', 'Klasik', '#FFB200'],
     ['modern', 'Modèn', '#16232C'],
     ['minimal', 'Minimalis', '#000000']
   ];
@@ -1902,7 +1903,7 @@ function settingsModal(){
     + '<div style="display:flex;gap:8px;margin-top:6px;">'
     + PDF_STYLES.map(function(s){
         var active = curTpl===s[0];
-        return '<button onclick="S.company.pdfTemplate=\''+s[0]+'\';updatePrintSheet();render();" style="flex:1;text-align:left;padding:10px;border-radius:8px;border:2px solid '+(active?'var(--accent)':'var(--line)')+';background:'+(active?'rgba(30,90,161,.06)':'var(--white)')+';">'
+        return '<button onclick="S.company.pdfTemplate=\''+s[0]+'\';updatePrintSheet();render();" style="flex:1;text-align:left;padding:10px;border-radius:8px;border:2px solid '+(active?'var(--accent)':'var(--line)')+';background:'+(active?'rgba(255,178,0,.10)':'var(--white)')+';">'
           + '<div style="width:100%;height:6px;border-radius:3px;background:'+s[2]+';margin-bottom:6px;"></div>'
           + '<span style="font-size:11px;font-weight:600;">'+s[1]+'</span>'
         + '</button>';
@@ -1967,7 +1968,7 @@ function renderEditor(){
     return '<div class="card" style="margin-bottom:10px;">'
     + '<div style="display:flex;align-items:flex-start;gap:8px;">'
     + '<input value="'+escAttr(it.d)+'" oninput="updItem(\''+it.id+'\',\'d\',this.value)" placeholder="Deziyasyon travay la" style="flex:1;font-size:13px;font-weight:500;background:transparent;border:none;padding:2px 0;">'
-    + '<button class="no-print" onclick="openPricePicker(\''+it.id+'\')" title="Pri Materyo — Bibliyotèk" style="color:var(--accent);background:rgba(177,75,39,.1);border-radius:6px;padding:2px 6px;flex-shrink:0;font-size:14px;">🏷️</button>'
+    + '<button class="no-print" onclick="openPricePicker(\''+it.id+'\')" title="Pri Materyo — Bibliyotèk" style="color:var(--ink);background:rgba(255,178,0,.16);border-radius:6px;padding:2px 6px;flex-shrink:0;font-size:14px;">🏷️</button>'
     + '<button class="no-print" onclick="openStoreCatalog()" title="Enfo Magazen/Founisè" style="color:var(--ink);background:rgba(22,35,44,.06);border-radius:6px;padding:4px;flex-shrink:0;">'+infoIcon()+'</button>'
     + '<button class="no-print" onclick="removeItem(\''+it.id+'\')" style="color:rgba(22,35,44,.3);padding:2px;flex-shrink:0;">'+trashIcon()+'</button>'
     + '</div>'
@@ -2024,7 +2025,7 @@ function renderEditor(){
       + '</div>'
       + '<div style="text-align:right;">'
         + '<p class="mono" style="font-size:9px;color:var(--muted);margin:0;">Sou-total</p>'
-        + '<p id="phase-subtotal" class="mono" style="font-size:14px;font-weight:600;color:var(--accent);margin:0;">'+fmt(totals[S.active])+' G</p>'
+        + '<p id="phase-subtotal" class="mono" style="font-size:14px;font-weight:600;color:var(--ink);margin:0;">'+fmt(totals[S.active])+' G</p>'
       + '</div>'
       + '<button class="no-print" onclick="removePhase()" style="color:rgba(22,35,44,.3);padding:4px;" title="Efase etap sa a">'+trashIcon()+'</button>'
     + '</div>'
@@ -2039,7 +2040,7 @@ function renderEditor(){
   + '<footer class="no-print" style="position:fixed;bottom:0;left:0;right:0;background:var(--ink);color:var(--paper);padding:12px 16px;display:flex;align-items:center;gap:12px;box-shadow:0 -4px 12px rgba(0,0,0,.15);">'
     + '<div style="flex:1;">'
       + '<p class="mono" style="font-size:9px;color:rgba(239,234,224,.5);text-transform:uppercase;margin:0;">Total Devis</p>'
-      + '<p id="footer-total" class="disp" style="font-size:17px;font-weight:600;color:var(--accent);margin:0;">'+fmt(finalHTG)+' <span style="font-size:12px;">HTG</span></p>'
+      + '<p id="footer-total" class="disp" style="font-size:17px;font-weight:600;color:var(--ink);margin:0;">'+fmt(finalHTG)+' <span style="font-size:12px;">HTG</span></p>'
     + '</div>'
     + '<button class="btn btn-accent disp" onclick="toggleSummary(true)">Rekapitilasyon</button>'
   + '</footer>'
@@ -2125,10 +2126,10 @@ function progressPanel(p, totals){
       '<div style="margin-top:12px;">'
       + '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">'
         + '<span style="font-size:12px;font-weight:600;">Avansman Jeneral</span>'
-        + '<span class="disp" id="overallProgressVal" style="font-size:18px;font-weight:700;color:var(--accent);">'+overall+'%</span>'
+        + '<span class="disp" id="overallProgressVal" style="font-size:18px;font-weight:700;color:var(--ink);">'+overall+'%</span>'
       + '</div>'
       + '<div style="background:rgba(22,35,44,.08);border-radius:999px;height:10px;overflow:hidden;">'
-        + '<div id="overallProgressBar" style="height:100%;width:'+overall+'%;background:linear-gradient(90deg,var(--accent),#F0895C);border-radius:999px;transition:width .2s;"></div>'
+        + '<div id="overallProgressBar" style="height:100%;width:'+overall+'%;background:linear-gradient(90deg,var(--accent),#B14B27);border-radius:999px;transition:width .2s;"></div>'
       + '</div>'
       + (isLate ? '<p style="font-size:11px;color:#C0392B;margin:8px 0 0;font-weight:600;">⚠ An reta pa '+daysLate+' jou (dat fen prevwa: '+esc(p.dateFen)+')</p>' : '')
       + (phaseRows ? '<p class="mono" style="font-size:9px;text-transform:uppercase;color:var(--muted);margin:16px 0 0;border-top:1px solid var(--line);padding-top:10px;">Pa Faz</p>'+phaseRows : '<p style="font-size:12px;color:var(--muted);margin:12px 0 0;">Ajoute atik nan yon faz pou kòmanse swiv avansman li.</p>')
@@ -2265,11 +2266,11 @@ function summaryModal(p, totals, sub, majAmt, finalHTG){
     + '<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:10px;padding-top:10px;border-top:1px solid var(--line);"><label style="font-size:13px;color:var(--muted);flex:1;">To chanj (HTG pou 1 USD)</label><input type="number" name="proj_tauxUSD" value="'+p.tauxUSD+'" oninput="updProj(\'tauxUSD\',this.value)" style="width:64px;font-size:13px;background:var(--paper);border-radius:6px;padding:5px 8px;text-align:right;"></div>'
   + '</div>'
   + '<div style="background:var(--ink);color:var(--paper);border-radius:12px;padding:14px 16px;margin-top:12px;">'
-    + '<div style="display:flex;justify-content:space-between;align-items:center;"><span class="disp" style="font-size:13px;text-transform:uppercase;">Total Jeneral</span><span class="disp" style="font-size:20px;font-weight:700;color:var(--accent);">'+fmt(finalHTG)+' HTG</span></div>'
+    + '<div style="display:flex;justify-content:space-between;align-items:center;"><span class="disp" style="font-size:13px;text-transform:uppercase;">Total Jeneral</span><span class="disp" style="font-size:20px;font-weight:700;color:var(--ink);">'+fmt(finalHTG)+' HTG</span></div>'
     + '<div style="display:flex;justify-content:space-between;margin-top:4px;opacity:.7;"><span class="mono" style="font-size:11px;">≈ Ekivalan USD</span><span class="mono" style="font-size:13px;">$'+fmt(finalUSD)+'</span></div>'
   + '</div>'
   + '<div class="card" style="margin-top:12px;">'
-    + '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;"><span style="font-size:12px;font-weight:600;text-transform:uppercase;color:var(--muted);">Tranch Peman</span>'+(pctSum!==100?'<span class="mono" style="font-size:10px;color:var(--accent);">Total: '+pctSum+'%</span>':'<span class="mono" style="font-size:10px;color:var(--muted);">Total: 100%</span>')+'</div>'
+    + '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;"><span style="font-size:12px;font-weight:600;text-transform:uppercase;color:var(--muted);">Tranch Peman</span>'+(pctSum!==100?'<span class="mono" style="font-size:10px;color:#C0392B;">Total: '+pctSum+'%</span>':'<span class="mono" style="font-size:10px;color:var(--muted);">Total: 100%</span>')+'</div>'
     + trancheRows
     + '<button class="btn btn-ghost disp" style="width:100%;justify-content:center;font-size:11px;margin-top:4px;" onclick="addTranche()">'+plusIcon()+' Ajoute Tranch</button>'
   + '</div>'
@@ -2596,7 +2597,7 @@ function calcModal(p){
           + entryRows
           + '<div style="background:var(--ink);color:var(--paper);border-radius:12px;padding:12px 14px;margin-top:8px;">'
             + '<p class="disp" style="font-size:12px;text-transform:uppercase;margin:0 0 6px;opacity:.8;">Gran Total Materyo</p>'
-            + '<div style="display:flex;justify-content:space-between;"><span style="font-size:13px;">Sak Siman</span><span class="disp" style="font-size:18px;font-weight:700;color:var(--accent);">'+fmt(betonTotals.sak)+'</span></div>'
+            + '<div style="display:flex;justify-content:space-between;"><span style="font-size:13px;">Sak Siman</span><span class="disp" style="font-size:18px;font-weight:700;color:var(--ink);">'+fmt(betonTotals.sak)+'</span></div>'
             + '<div style="display:flex;justify-content:space-between;font-size:11px;opacity:.75;margin-top:4px;"><span>Sab</span><span class="mono">'+fmt(betonTotals.sab)+' m³</span></div>'
             + '<div style="display:flex;justify-content:space-between;font-size:11px;opacity:.75;margin-top:2px;"><span>Gravye</span><span class="mono">'+fmt(betonTotals.gravye)+' m³</span></div>'
             + '<div style="display:flex;justify-content:space-between;font-size:11px;opacity:.75;margin-top:2px;"><span>Dlo</span><span class="mono">'+fmt(betonTotals.dlo)+' L</span></div>'
@@ -2862,7 +2863,7 @@ function resultBox(lines, bigLabel, bigVal){
   var lh = lines.map(function(l){ return '<div style="display:flex;justify-content:space-between;font-size:11px;opacity:.75;margin-top:2px;"><span>'+esc(l[0])+'</span><span class="mono">'+l[1]+'</span></div>'; }).join('');
   return '<div style="background:var(--ink);color:var(--paper);border-radius:12px;padding:12px 14px;margin-top:12px;">'
     + lh
-    + '<div style="display:flex;justify-content:space-between;margin-top:'+(lines.length?'6px':'0')+';"><span class="disp" style="font-size:13px;text-transform:uppercase;">'+esc(bigLabel)+'</span><span class="disp" style="font-size:20px;font-weight:700;color:var(--accent);">'+bigVal+'</span></div>'
+    + '<div style="display:flex;justify-content:space-between;margin-top:'+(lines.length?'6px':'0')+';"><span class="disp" style="font-size:13px;text-transform:uppercase;">'+esc(bigLabel)+'</span><span class="disp" style="font-size:20px;font-weight:700;color:var(--ink);">'+bigVal+'</span></div>'
   + '</div>';
 }
 function destRow(opts, selId, onchange, onclick){
@@ -3189,7 +3190,7 @@ function templateKlasik(p, company, totals, sub, majAmt, finalHTG, finalUSD){
   }).join('');
   var trancheRows = trancheRowsFor(p, finalHTG);
   return '<div style="max-width:750px;margin:0 auto;padding:30px;font-family:Inter,sans-serif;color:#16232C;">'
-  + '<div style="display:flex;justify-content:space-between;align-items:flex-start;border-bottom:3px solid #1E5AA1;padding-bottom:14px;">'
+  + '<div style="display:flex;justify-content:space-between;align-items:flex-start;border-bottom:3px solid #FFB200;padding-bottom:14px;">'
     + '<div><img src="'+(company.logo||('data:image/jpeg;base64,'+DEFAULT_LOGO_B64))+'" style="height:52px;display:block;"><p style="font-family:\'Big Shoulders Display\',sans-serif;font-weight:700;font-size:15px;text-transform:uppercase;margin:8px 0 0;">'+esc(company.non||'GLC Construction HT')+'</p><p style="font-size:11px;color:#666;margin:2px 0 0;">'+(company.slogan?esc(company.slogan):t('pv_taginKaye'))+(company.tel?(' — '+t('pv_telefon')+': '+esc(company.tel)):'')+(company.adres?(' — '+esc(company.adres)):'')+'</p></div>'
     + '<div style="text-align:right;font-size:11px;"><strong>'+t('pv_devisNo')+':</strong> '+esc(p.devisNo)+'<br><strong>'+t('pv_dat')+':</strong> '+esc(p.dat)+'<br><strong>'+t('pv_valab')+':</strong> '+esc(p.validite||30)+' '+t('pv_jou')+'</div>'
   + '</div>'
@@ -3217,10 +3218,10 @@ function templateModern(p, company, totals, sub, majAmt, finalHTG, finalUSD){
     var rows = buildDevisRows(ph, '#eee');
     if(!rows) return '';
     return '<div style="display:flex;align-items:center;gap:8px;margin:18px 0 8px;">'
-      + '<span style="width:24px;height:24px;border-radius:6px;background:#1E5AA1;color:#fff;font-family:\'Big Shoulders Display\',sans-serif;font-weight:700;font-size:12px;display:flex;align-items:center;justify-content:center;flex-shrink:0;">'+ph.n+'</span>'
+      + '<span style="width:24px;height:24px;border-radius:6px;background:#FFB200;color:#16232C;font-family:\'Big Shoulders Display\',sans-serif;font-weight:700;font-size:12px;display:flex;align-items:center;justify-content:center;flex-shrink:0;">'+ph.n+'</span>'
       + '<h3 style="font-family:\'Big Shoulders Display\',sans-serif;font-weight:700;font-size:15px;text-transform:uppercase;margin:0;letter-spacing:.02em;">'+esc(ph.label)+'</h3>'
     + '</div>'
-    + '<table style="width:100%;border-collapse:collapse;font-size:11px;border-left:3px solid #1E5AA1;"><thead><tr style="border-bottom:2px solid #16232C;"><th style="padding:5px 6px;text-align:left;color:var(--muted);text-transform:uppercase;font-size:9px;">'+t('pv_materyèl')+'</th><th style="padding:5px 6px;color:var(--muted);text-transform:uppercase;font-size:9px;">'+t('pv_unite')+'</th><th style="padding:5px 6px;text-align:right;color:var(--muted);text-transform:uppercase;font-size:9px;">'+t('pv_kantite')+'</th><th style="padding:5px 6px;text-align:right;color:var(--muted);text-transform:uppercase;font-size:9px;">'+t('pv_priInite')+'</th><th style="padding:5px 6px;text-align:right;color:var(--muted);text-transform:uppercase;font-size:9px;">'+t('pv_total')+'</th></tr></thead><tbody>'+rows+'</tbody></table>';
+    + '<table style="width:100%;border-collapse:collapse;font-size:11px;border-left:3px solid #FFB200;"><thead><tr style="border-bottom:2px solid #16232C;"><th style="padding:5px 6px;text-align:left;color:var(--muted);text-transform:uppercase;font-size:9px;">'+t('pv_materyèl')+'</th><th style="padding:5px 6px;color:var(--muted);text-transform:uppercase;font-size:9px;">'+t('pv_unite')+'</th><th style="padding:5px 6px;text-align:right;color:var(--muted);text-transform:uppercase;font-size:9px;">'+t('pv_kantite')+'</th><th style="padding:5px 6px;text-align:right;color:var(--muted);text-transform:uppercase;font-size:9px;">'+t('pv_priInite')+'</th><th style="padding:5px 6px;text-align:right;color:var(--muted);text-transform:uppercase;font-size:9px;">'+t('pv_total')+'</th></tr></thead><tbody>'+rows+'</tbody></table>';
   }).join('');
   var trancheRows = trancheRowsFor(p, finalHTG);
   return '<div style="max-width:750px;margin:0 auto;padding:0 0 30px;font-family:Inter,sans-serif;color:#16232C;">'
@@ -3237,7 +3238,7 @@ function templateModern(p, company, totals, sub, majAmt, finalHTG, finalUSD){
   + '<div style="margin-top:22px;background:#F4F6F5;border-radius:10px;padding:16px;font-size:12px;">'
     + '<div style="display:flex;justify-content:space-between;padding:3px 0;"><span>'+t('pv_soutotal')+'</span><span>'+fmt(sub)+' HTG</span></div>'
     + '<div style="display:flex;justify-content:space-between;padding:3px 0;"><span>'+t('pv_majorasyon')+' ('+esc(p.majorasyon)+'%)</span><span>'+fmt(majAmt)+' HTG</span></div>'
-    + '<div style="margin-top:10px;padding-top:12px;border-top:1px solid #ddd;display:flex;justify-content:space-between;align-items:baseline;"><span class="mono" style="font-size:10px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);">'+t('pv_totalJeneral')+'</span><span style="font-family:\'Big Shoulders Display\',sans-serif;font-size:28px;font-weight:700;color:#1E5AA1;">'+fmt(finalHTG)+' <span style="font-size:14px;">HTG</span></span></div>'
+    + '<div style="margin-top:10px;padding-top:12px;border-top:1px solid #ddd;display:flex;justify-content:space-between;align-items:baseline;"><span class="mono" style="font-size:10px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);">'+t('pv_totalJeneral')+'</span><span style="font-family:\'Big Shoulders Display\',sans-serif;font-size:28px;font-weight:700;color:#16232C;">'+fmt(finalHTG)+' <span style="font-size:14px;">HTG</span></span></div>'
     + '<div style="display:flex;justify-content:flex-end;font-size:11px;color:#666;margin-top:2px;">≈ $'+fmt(finalUSD)+' USD (to '+esc(p.tauxUSD)+' G/$)</div>'
   + '</div>'
   + (trancheRows ? ('<div style="margin-top:14px;font-size:12px;"><strong style="font-family:\'Big Shoulders Display\',sans-serif;font-weight:700;text-transform:uppercase;font-size:13px;">'+t('pv_echeansye')+'</strong>'+trancheRows+'</div>') : '')
