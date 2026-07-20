@@ -323,7 +323,10 @@ var I18N = {
     pv_soutotal:"Sou-total (Materyo + Men-d'èv)", pv_majorasyon:'Majorasyon', pv_totalJeneral:'TOTAL JENERAL',
     pv_echeansye:'Echeansye Peman', pv_kondisyon:'Kondisyon Jeneral', pv_siyatiKontrakte:'Siyati & Cachet Kontraktè',
     pv_siyatiKliyan:'Siyati Kliyan', pv_nimewoDokiman:'Nimewo Dokiman', pv_dokimanJenere:'Dokiman jenere pou',
-    pv_eskane:'Eskane kòd QR la pou verifye otantisite devis sa a.', pv_taginKaye:'Kaye Metre & Devis Konstriksyon'
+    pv_eskane:'Eskane kòd QR la pou verifye otantisite devis sa a.', pv_taginKaye:'Kaye Metre & Devis Konstriksyon',
+    pv_to:'to', pv_atik:'Atik', pv_devisKontraktyèl:'Devis Kontraktyèl',
+    pv_onèTemplate:'Nou gen onè soumèt pou pwojè "{projet}" devis ki swiv la, ki detaye materyo, travay ak kondisyon yo.',
+    pv_fètNanTemplate:'Fèt nan {lye}, dat {dat}'
   },
   fr: {
     tagline:'Métré & Devis', dashboard_intro:'Tableau de bord de vos projets.',
@@ -353,7 +356,10 @@ var I18N = {
     pv_soutotal:"Sous-total (Matériaux + Main-d'œuvre)", pv_majorasyon:'Majoration', pv_totalJeneral:'TOTAL GÉNÉRAL',
     pv_echeansye:'Échéancier de Paiement', pv_kondisyon:'Conditions Générales', pv_siyatiKontrakte:"Signature & Cachet de l'Entrepreneur",
     pv_siyatiKliyan:'Signature du Client', pv_nimewoDokiman:'Numéro de Document', pv_dokimanJenere:'Document généré pour',
-    pv_eskane:'Scannez le QR code pour vérifier que ce devis est authentique.', pv_taginKaye:'Métré & Devis de Construction'
+    pv_eskane:'Scannez le QR code pour vérifier que ce devis est authentique.', pv_taginKaye:'Métré & Devis de Construction',
+    pv_to:'taux', pv_atik:'Article', pv_devisKontraktyèl:'Devis Contractuel',
+    pv_onèTemplate:'Nous avons l\'honneur de vous soumettre, pour le projet « {projet} », le devis détaillé ci-dessous, incluant matériaux, travaux et conditions.',
+    pv_fètNanTemplate:'Fait à {lye}, le {dat}'
   },
   en: {
     tagline:'Estimating & Quotes', dashboard_intro:'Your projects dashboard.',
@@ -383,7 +389,10 @@ var I18N = {
     pv_soutotal:'Subtotal (Materials + Labor)', pv_majorasyon:'Markup', pv_totalJeneral:'GRAND TOTAL',
     pv_echeansye:'Payment Schedule', pv_kondisyon:'General Terms', pv_siyatiKontrakte:"Contractor's Signature & Stamp",
     pv_siyatiKliyan:"Client's Signature", pv_nimewoDokiman:'Document Number', pv_dokimanJenere:'Document generated for',
-    pv_eskane:'Scan the QR code to verify the authenticity of this quote.', pv_taginKaye:'Construction Estimating & Quotes'
+    pv_eskane:'Scan the QR code to verify the authenticity of this quote.', pv_taginKaye:'Construction Estimating & Quotes',
+    pv_to:'rate', pv_atik:'Article', pv_devisKontraktyèl:'Contract Quote',
+    pv_onèTemplate:'We are pleased to submit, for the "{projet}" project, the detailed quote below, covering materials, work, and terms.',
+    pv_fètNanTemplate:'Done at {lye}, on {dat}'
   }
 };
 function t(key){
@@ -2001,7 +2010,7 @@ function renderEditor(){
       + '<button class="chip'+(tip==='lokasyon'?' active':'')+'" style="padding:3px 10px;font-size:10px;" onclick="updItem(\''+it.id+'\',\'tip\',\'lokasyon\');render();">Lokasyon</button>'
       + '<select onchange="updItem(\''+it.id+'\',\'priceMode\',this.value);render();" style="margin-left:auto;font-size:10px;font-family:Inter,sans-serif;background:rgba(22,35,44,.06);border:1px solid var(--line);border-radius:999px;padding:4px 8px;color:var(--ink);">'
         + '<option value="inite" '+(!isFiks?'selected':'')+'>Materyo × Kantite</option>'
-        + '<option value="fiks" '+(isFiks?'selected':'')+'>Pri fiks</option>'
+        + '<option value="fiks" '+(isFiks?'selected':'')+'>Tout Fiks (san miltiplikasyon)</option>'
       + '</select>'
     + '</div>'
     + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px;">'
@@ -2009,8 +2018,8 @@ function renderEditor(){
     + fieldHtml(isFiks?'Kantite (enfo sèlman)':'Kantite','<input type="number" value="'+it.q+'" oninput="updItem(\''+it.id+'\',\'q\',this.value)">')
     + '</div>'
     + '<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-top:8px;">'
-    + fieldHtml(isFiks?'Pri M.(Fiks)':'Pri M.(× Kantite)','<input type="number" value="'+it.pm+'" oninput="updItem(\''+it.id+'\',\'pm\',this.value)">')
-    + fieldHtml('Pri Mendèv (Fiks)','<input type="number" value="'+it.pmo+'" oninput="updItem(\''+it.id+'\',\'pmo\',this.value)">')
+    + fieldHtml(isFiks?'Pri Materyo (Fiks)':'Pri Materyo (× Kantite)','<input type="number" value="'+it.pm+'" oninput="updItem(\''+it.id+'\',\'pm\',this.value)">')
+    + fieldHtml('Pri Men-d\'èv (Fiks, pa miltipliye)','<input type="number" value="'+it.pmo+'" oninput="updItem(\''+it.id+'\',\'pmo\',this.value)">')
     + '<div><label class="mono" style="display:block;font-size:9px;text-transform:uppercase;color:var(--muted);margin-bottom:3px;">Total</label><div id="total-'+it.id+'" class="mono" style="font-size:12px;font-weight:600;background:rgba(22,35,44,.05);border-radius:6px;padding:7px 8px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">'+fmt(itemTotal(it))+'</div></div>'
     + '</div></div>';
   }).join('');
@@ -2400,7 +2409,7 @@ var calcState = { longe:'', wote:'', ouveti:'', blokM2:12.5, pet:5,
   poutBarKantite:4, poutRecouvriman:0.4, poutKouvèti:2.5, poutEtriyeEspasman:15, destPoutre:3,
   krepiLonge:'', krepiWote:'', krepiOuveti:'', krepiEpes:1.5, krepiBetonType:'mortier_krepi', krepiPet:5, destKrepi:6,
   chapLonge:'', chapLaje:'', chapBwaTip:'2x4', chapEspasman:40, chapLongèBwa:12, chapPetBwa:10,
-  chapEspasmanPoto:1.5, chapPlwaywoudPet:10, chapKlouGwose:'2 1/2"', chapKlouRannman:0.15, destChap:5,
+  chapEspasmanPoto:1.5, chapPlwaywoudPet:10, chapKlouGwose:'2 1/2"', chapKlouRannman:0.15, chapKlouRannmanFèy:0.35, destChap:5,
   destBlok:3, destFe:2, destBeton:2 };
 
 function calcModal(p){
@@ -2532,8 +2541,9 @@ function calcModal(p){
   var dalGravye = dalVol*dalCt.gravye*dalPet;
   var dalDlo = dalVol*dalCt.dloL*dalPet;
   var dalEspM = (Number(calcState.dalEspasman)||20)/100;
-  var dalNbBarsL = dalEspM>0 ? Math.ceil(dalLajeM/dalEspM)+1 : 0;
-  var dalNbBarsW = dalEspM>0 ? Math.ceil(dalLongeM/dalEspM)+1 : 0;
+  var dalKouv = (Number(calcState.dalKouvèti)||2.5)/100;
+  var dalNbBarsL = dalEspM>0 ? Math.ceil((dalLajeM-2*dalKouv)/dalEspM)+1 : 0;
+  var dalNbBarsW = dalEspM>0 ? Math.ceil((dalLongeM-2*dalKouv)/dalEspM)+1 : 0;
   var dalLongèTotal = (dalNbBarsL*dalLongeM) + (dalNbBarsW*dalLajeM);
   var dalPyeTotal = dalLongèTotal*M_TO_FT;
   var dalBarNeeded = Math.ceil(dalPyeTotal/(Number(calcState.barLonge)||20));
@@ -2584,7 +2594,9 @@ function calcModal(p){
   var chapPlwaywoudPetMult = 1+(Number(calcState.chapPlwaywoudPet)||10)/100;
   var chapKantiteFèy = Math.ceil((chapSifasTwati*chapPlwaywoudPetMult)/SIFAS_FEY_PLWAYWOUD);
   var chapTotalPyesBwa = chapKantitePlanch + chapKantiteFèy;
-  var chapKlouLib = Math.ceil(chapTotalPyesBwa*(Number(calcState.chapKlouRannman)||0.15));
+  var chapKlouChevron = Math.ceil(chapKantitePlanch*(Number(calcState.chapKlouRannman)||0.15));
+  var chapKlouFèy = Math.ceil(chapKantiteFèy*(Number(calcState.chapKlouRannmanFèy)||0.35));
+  var chapKlouLib = chapKlouChevron + chapKlouFèy;
 
   var tabs = '<div class="scrollx" style="margin-bottom:14px;">'
     + tabBtn('beton','Dosaj Beton') + tabBtn('fe','Fè → Bar') + tabBtn('semel','Semèl') + tabBtn('poto','Poto') + tabBtn('poutre','Poutre') + tabBtn('dal','Dal') + tabBtn('blok','Blòk') + tabBtn('chap','Chapant') + tabBtn('tol','Tòl / Kouvèti') + tabBtn('elek','Elektrisite') + tabBtn('krepi','Krepisaj') + tabBtn('karel','Karelaj') + tabBtn('penti','Penti') + tabBtn('btu','BTU / Klim') + tabBtn('vol','Volim / Sitèn')
@@ -2672,6 +2684,7 @@ function calcModal(p){
       + '<div class="field" style="margin-top:8px;"><label>Tip Beton</label><select name="cf_potoBetonType" onchange="calcUpd(\'potoBetonType\',this.value)" style="width:100%;font-size:13px;background:var(--white);border:1px solid var(--line);border-radius:6px;padding:7px 8px;">'
         + CONCRETE_TYPES.map(function(c){ return '<option value="'+c.key+'" '+(c.key===calcState.potoBetonType?'selected':'')+'>'+esc(c.label)+'</option>'; }).join('')
       + '</select></div>'
+      + fieldHtml('Pèt Beton (%)','<input type="text" inputmode="decimal" value="'+calcState.potoBetonPet+'" name="cf_potoBetonPet" oninput="calcUpd(\'potoBetonPet\',this.value)" style="background:var(--white);border:1px solid var(--line);">')
       + resultBox([['Volim beton', fmt(potoVol)+' m³'],['Ciman', fmt(potoCimentKg)+' kg'],['Sab', fmt(potoSab)+' m³'],['Gravye', fmt(potoGravye)+' m³'],['Dlo', fmt(potoDlo)+' L']], 'Sak Siman', fmt(potoCimentSak))
       + '<p style="font-size:11px;font-weight:600;text-transform:uppercase;color:var(--muted);margin:14px 0 6px;">Fè Prensipal (vètikal)</p>'
       + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">'
@@ -2704,6 +2717,7 @@ function calcModal(p){
       + '<div class="field" style="margin-top:8px;"><label>Tip Beton</label><select name="cf_semelBetonType" onchange="calcUpd(\'semelBetonType\',this.value)" style="width:100%;font-size:13px;background:var(--white);border:1px solid var(--line);border-radius:6px;padding:7px 8px;">'
         + CONCRETE_TYPES.map(function(c){ return '<option value="'+c.key+'" '+(c.key===calcState.semelBetonType?'selected':'')+'>'+esc(c.label)+'</option>'; }).join('')
       + '</select></div>'
+      + fieldHtml('Pèt Beton (%)','<input type="text" inputmode="decimal" value="'+calcState.semelBetonPet+'" name="cf_semelBetonPet" oninput="calcUpd(\'semelBetonPet\',this.value)" style="background:var(--white);border:1px solid var(--line);">')
       + resultBox([['Volim beton', fmt(semelVol)+' m³'],['Ciman', fmt(semelCimentKg)+' kg'],['Sab', fmt(semelSab)+' m³'],['Gravye', fmt(semelGravye)+' m³'],['Dlo', fmt(semelDlo)+' L']], 'Sak Siman', fmt(semelCimentSak))
       + '<p style="font-size:11px;font-weight:600;text-transform:uppercase;color:var(--muted);margin:14px 0 6px;">Fè Kadriyaj (baz)</p>'
       + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">'
@@ -2813,6 +2827,7 @@ function calcModal(p){
       + '<div class="field" style="margin-top:8px;"><label>Tip Beton</label><select name="cf_dalBetonType" onchange="calcUpd(\'dalBetonType\',this.value)" style="width:100%;font-size:13px;background:var(--white);border:1px solid var(--line);border-radius:6px;padding:7px 8px;">'
         + CONCRETE_TYPES.map(function(c){ return '<option value="'+c.key+'" '+(c.key===calcState.dalBetonType?'selected':'')+'>'+esc(c.label)+'</option>'; }).join('')
       + '</select></div>'
+      + fieldHtml('Pèt Beton (%)','<input type="text" inputmode="decimal" value="'+calcState.dalBetonPet+'" name="cf_dalBetonPet" oninput="calcUpd(\'dalBetonPet\',this.value)" style="background:var(--white);border:1px solid var(--line);">')
       + resultBox([['Volim beton', fmt(dalVol)+' m³'],['Sab', fmt(dalSab)+' m³'],['Gravye', fmt(dalGravye)+' m³'],['Dlo', fmt(dalDlo)+' L']], 'Sak Siman', fmt(dalCimentSak))
       + '<p style="font-size:11px;font-weight:600;text-transform:uppercase;color:var(--muted);margin:14px 0 6px;">Griyaj Fè (de sans)</p>'
       + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">'
@@ -2820,6 +2835,7 @@ function calcModal(p){
       + '<div class="field"><label>Dyamèt</label><select name="cf_dalDyamet" onchange="calcUpd(\'dalDyamet\',this.value)" style="width:100%;font-size:13px;background:var(--white);border:1px solid var(--line);border-radius:6px;padding:7px 8px;">'
         + Object.keys(REBAR).map(function(k){ return '<option value="'+esc(k)+'" '+(k===calcState.dalDyamet?'selected':'')+'>'+esc(k)+'</option>'; }).join('')
       + '</select></div>'
+      + '<div style="margin-top:8px;">'+fieldHtml('Kouvèti beton (cm)','<input type="text" inputmode="decimal" step="0.5" value="'+calcState.dalKouvèti+'" name="cf_dalKouvèti" oninput="calcUpd(\'dalKouvèti\',this.value)" style="background:var(--white);border:1px solid var(--line);">')+'</div>'
       + '</div>'
       + resultBox([['Bar sans lajè', fmt(dalNbBarsL)],['Bar sans longè', fmt(dalNbBarsW)],['Total pye', fmt(dalPyeTotal)+' pye']], 'Bar Griyaj Total', fmt(dalBarNeeded))
       + destRow(optsDal, 'destDalSel', 'calcState.destDal=Number(this.value)', 'applyDal()')
@@ -2837,6 +2853,7 @@ function calcModal(p){
       + '<div class="field" style="margin-top:8px;"><label>Tip Beton</label><select name="cf_poutBetonType" onchange="calcUpd(\'poutBetonType\',this.value)" style="width:100%;font-size:13px;background:var(--white);border:1px solid var(--line);border-radius:6px;padding:7px 8px;">'
         + CONCRETE_TYPES.map(function(c){ return '<option value="'+c.key+'" '+(c.key===calcState.poutBetonType?'selected':'')+'>'+esc(c.label)+'</option>'; }).join('')
       + '</select></div>'
+      + fieldHtml('Pèt Beton (%)','<input type="text" inputmode="decimal" value="'+calcState.poutBetonPet+'" name="cf_poutBetonPet" oninput="calcUpd(\'poutBetonPet\',this.value)" style="background:var(--white);border:1px solid var(--line);">')
       + resultBox([['Volim beton', fmt(poutVol)+' m³'],['Ciman', fmt(poutCimentKg)+' kg'],['Sab', fmt(poutSab)+' m³'],['Gravye', fmt(poutGravye)+' m³'],['Dlo', fmt(poutDlo)+' L']], 'Sak Siman', fmt(poutCimentSak))
       + '<p style="font-size:11px;font-weight:600;text-transform:uppercase;color:var(--muted);margin:14px 0 6px;">Fè Prensipal (lonjitidinal)</p>'
       + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">'
@@ -2894,9 +2911,10 @@ function calcModal(p){
       + '<div class="field"><label>Gwosè Klou (pous)</label><select name="cf_chapKlouGwose" onchange="calcUpd(\'chapKlouGwose\',this.value)" style="width:100%;font-size:13px;background:var(--white);border:1px solid var(--line);border-radius:6px;padding:7px 8px;">'
         + ['1"','1 1/2"','2"','2 1/2"','3"','3 1/2"','4"'].map(function(g){ return '<option value="'+g+'" '+(calcState.chapKlouGwose===g?'selected':'')+'>'+g+'</option>'; }).join('')
       + '</select></div>'
-      + fieldHtml('Rannman (lib pa pyès bwa)','<input type="text" inputmode="decimal" step="0.01" value="'+calcState.chapKlouRannman+'" name="cf_chapKlouRannman" oninput="calcUpd(\'chapKlouRannman\',this.value)" style="background:var(--white);border:1px solid var(--line);">')
+      + fieldHtml('Rannman chevron (lib pa planch)','<input type="text" inputmode="decimal" step="0.01" value="'+calcState.chapKlouRannman+'" name="cf_chapKlouRannman" oninput="calcUpd(\'chapKlouRannman\',this.value)" style="background:var(--white);border:1px solid var(--line);">')
+      + fieldHtml('Rannman plwaywoud (lib pa fèy)','<input type="text" inputmode="decimal" step="0.01" value="'+calcState.chapKlouRannmanFèy+'" name="cf_chapKlouRannmanFèy" oninput="calcUpd(\'chapKlouRannmanFèy\',this.value)" style="background:var(--white);border:1px solid var(--line);">')
       + '</div>'
-      + resultBox([['Total pyès (planch + fèy)', fmt(chapTotalPyesBwa)]], 'Klou '+calcState.chapKlouGwose+' (lib)', fmt(chapKlouLib))
+      + resultBox([['Klou pou chevron', fmt(chapKlouChevron)+' lib'],['Klou pou plwaywoud', fmt(chapKlouFèy)+' lib']], 'Klou '+calcState.chapKlouGwose+' Total (lib)', fmt(chapKlouLib))
       + destRow(optsChap, 'destChapSel', 'calcState.destChap=Number(this.value)', 'applyChapant()')
       + '<p class="mono" style="font-size:9px;color:var(--muted);margin-top:8px;">Kalkil senplifye — chevron, poto etè (lokasyon), plwaywoud, ak klou. Pant twati pa enkli — ogmante % pèt si twati a gen anpil pant.</p>';
   }
@@ -3254,7 +3272,7 @@ function templateKlasik(p, company, totals, sub, majAmt, finalHTG, finalUSD){
     + '<div style="display:flex;justify-content:space-between;padding:3px 0;"><span>'+t('pv_soutotal')+'</span><span>'+fmt(sub)+' HTG</span></div>'
     + '<div style="display:flex;justify-content:space-between;padding:3px 0;"><span>'+t('pv_majorasyon')+' ('+esc(p.majorasyon)+'%)</span><span>'+fmt(majAmt)+' HTG</span></div>'
     + '<div style="display:flex;justify-content:space-between;padding:8px 0;margin-top:6px;border-top:1px solid #16232C;font-family:\'Big Shoulders Display\',sans-serif;font-size:17px;font-weight:700;"><span>'+t('pv_totalJeneral')+'</span><span style="color:#B14B27;">'+fmt(finalHTG)+' HTG</span></div>'
-    + '<div style="display:flex;justify-content:flex-end;font-size:11px;color:#666;">≈ $'+fmt(finalUSD)+' USD (to '+esc(p.tauxUSD)+' G/$)</div>'
+    + '<div style="display:flex;justify-content:flex-end;font-size:11px;color:#666;">≈ $'+fmt(finalUSD)+' USD ('+t('pv_to')+' '+esc(p.tauxUSD)+' G/$)</div>'
   + '</div>'
   + (trancheRows ? ('<div style="margin-top:14px;font-size:12px;"><strong style="font-family:\'Big Shoulders Display\',sans-serif;font-weight:700;text-transform:uppercase;font-size:13px;">'+t('pv_echeansye')+'</strong>'+trancheRows+'</div>') : '')
   + '<div style="margin-top:16px;font-size:10px;color:#555;border-top:1px solid #ddd;padding-top:10px;"><strong>'+t('pv_kondisyon')+':</strong> '+esc(company.kondisyon||DEFAULT_TERMS)+'</div>'
@@ -3290,7 +3308,7 @@ function templateModern(p, company, totals, sub, majAmt, finalHTG, finalUSD){
     + '<div style="display:flex;justify-content:space-between;padding:3px 0;"><span>'+t('pv_soutotal')+'</span><span>'+fmt(sub)+' HTG</span></div>'
     + '<div style="display:flex;justify-content:space-between;padding:3px 0;"><span>'+t('pv_majorasyon')+' ('+esc(p.majorasyon)+'%)</span><span>'+fmt(majAmt)+' HTG</span></div>'
     + '<div style="margin-top:10px;padding-top:12px;border-top:1px solid #ddd;display:flex;justify-content:space-between;align-items:baseline;"><span class="mono" style="font-size:10px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);">'+t('pv_totalJeneral')+'</span><span style="font-family:\'Big Shoulders Display\',sans-serif;font-size:28px;font-weight:700;color:#16232C;">'+fmt(finalHTG)+' <span style="font-size:14px;">HTG</span></span></div>'
-    + '<div style="display:flex;justify-content:flex-end;font-size:11px;color:#666;margin-top:2px;">≈ $'+fmt(finalUSD)+' USD (to '+esc(p.tauxUSD)+' G/$)</div>'
+    + '<div style="display:flex;justify-content:flex-end;font-size:11px;color:#666;margin-top:2px;">≈ $'+fmt(finalUSD)+' USD ('+t('pv_to')+' '+esc(p.tauxUSD)+' G/$)</div>'
   + '</div>'
   + (trancheRows ? ('<div style="margin-top:14px;font-size:12px;"><strong style="font-family:\'Big Shoulders Display\',sans-serif;font-weight:700;text-transform:uppercase;font-size:13px;">'+t('pv_echeansye')+'</strong>'+trancheRows+'</div>') : '')
   + '<div style="margin-top:16px;font-size:10px;color:#555;border-top:1px solid #ddd;padding-top:10px;"><strong>'+t('pv_kondisyon')+':</strong> '+esc(company.kondisyon||DEFAULT_TERMS)+'</div>'
@@ -3322,7 +3340,7 @@ function templateMinimal(p, company, totals, sub, majAmt, finalHTG, finalUSD){
     + '<div style="display:flex;justify-content:space-between;padding:3px 0;"><span>'+t('pv_soutotal')+'</span><span>'+fmt(sub)+' HTG</span></div>'
     + '<div style="display:flex;justify-content:space-between;padding:3px 0;"><span>'+t('pv_majorasyon')+' ('+esc(p.majorasyon)+'%)</span><span>'+fmt(majAmt)+' HTG</span></div>'
     + '<div style="display:flex;justify-content:space-between;padding:8px 0;margin-top:6px;border-top:1px solid #000;font-weight:700;font-size:14px;"><span>'+t('pv_totalJeneral')+'</span><span>'+fmt(finalHTG)+' HTG</span></div>'
-    + '<div style="display:flex;justify-content:flex-end;font-size:11px;color:#444;">≈ $'+fmt(finalUSD)+' USD (to '+esc(p.tauxUSD)+' G/$)</div>'
+    + '<div style="display:flex;justify-content:flex-end;font-size:11px;color:#444;">≈ $'+fmt(finalUSD)+' USD ('+t('pv_to')+' '+esc(p.tauxUSD)+' G/$)</div>'
   + '</div>'
   + (trancheRows ? ('<div style="margin-top:14px;font-size:12px;"><strong style="text-transform:uppercase;font-size:12px;">'+t('pv_echeansye')+'</strong>'+trancheRows+'</div>') : '')
   + '<div style="margin-top:16px;font-size:10px;color:#333;border-top:1px solid #ccc;padding-top:10px;"><strong>'+t('pv_kondisyon')+':</strong> '+esc(company.kondisyon||DEFAULT_TERMS)+'</div>'
@@ -3336,32 +3354,34 @@ function templateFormal(p, company, totals, sub, majAmt, finalHTG, finalUSD){
     if(ph.items.length===0 || totals[i]===0) return '';
     var rows = buildDevisRows(ph, '#ccc');
     if(!rows) return '';
-    return '<h3 style="font-family:Georgia,serif;font-weight:700;font-size:13px;margin:18px 0 6px;letter-spacing:.02em;">Atik '+ph.n+' — '+esc(ph.label)+'</h3>'
+    return '<h3 style="font-family:Georgia,serif;font-weight:700;font-size:13px;margin:18px 0 6px;letter-spacing:.02em;">'+t('pv_atik')+' '+ph.n+' — '+esc(ph.label)+'</h3>'
     + '<table style="width:100%;border-collapse:collapse;font-size:11px;font-family:Georgia,serif;"><thead><tr style="border-top:1px solid #16232C;border-bottom:1px solid #16232C;"><th style="padding:5px 6px;text-align:left;font-weight:700;">'+t('pv_materyèl')+'</th><th style="padding:5px 6px;font-weight:700;">'+t('pv_unite')+'</th><th style="padding:5px 6px;text-align:right;font-weight:700;">'+t('pv_kantite')+'</th><th style="padding:5px 6px;text-align:right;font-weight:700;">'+t('pv_priInite')+'</th><th style="padding:5px 6px;text-align:right;font-weight:700;">'+t('pv_total')+'</th></tr></thead><tbody>'+rows+'</tbody></table>';
   }).join('');
   var trancheRows = trancheRowsFor(p, finalHTG);
+  var onèText = t('pv_onèTemplate').replace('{projet}', esc(p.projet||'—'));
+  var fètNanText = t('pv_fètNanTemplate').replace('{lye}', esc(company.adres||'____________')).replace('{dat}', esc(p.dat));
   return '<div style="max-width:750px;margin:16px auto;padding:34px;font-family:Georgia,serif;color:#16232C;border:2px solid #16232C;box-shadow:inset 0 0 0 4px #fff, inset 0 0 0 5px #16232C;">'
   + '<div style="text-align:center;border-bottom:1px solid #16232C;padding-bottom:14px;">'
-    + '<p style="font-size:10px;letter-spacing:.15em;text-transform:uppercase;color:#666;margin:0 0 6px;">Devis Kontraktyèl</p>'
+    + '<p style="font-size:10px;letter-spacing:.15em;text-transform:uppercase;color:#666;margin:0 0 6px;">'+t('pv_devisKontraktyèl')+'</p>'
     + '<p style="font-family:Georgia,serif;font-weight:700;font-size:18px;margin:0;">'+esc(company.non||'GLC Construction HT')+'</p>'
-    + '<p style="font-size:11px;color:#555;margin:4px 0 0;">'+(company.tel?('Tel: '+esc(company.tel)):'')+(company.adres?(' · '+esc(company.adres)):'')+'</p>'
+    + '<p style="font-size:11px;color:#555;margin:4px 0 0;">'+(company.tel?(t('pv_telefon')+': '+esc(company.tel)):'')+(company.adres?(' · '+esc(company.adres)):'')+'</p>'
   + '</div>'
   + '<div style="display:flex;justify-content:space-between;margin-top:16px;font-size:11px;">'
-    + '<div><strong>N° Devis:</strong> '+esc(p.devisNo)+'<br><strong>Dat:</strong> '+esc(p.dat)+'<br><strong>Valab:</strong> '+esc(p.validite||30)+' '+t('pv_jou')+'</div>'
-    + '<div style="text-align:right;"><strong>Kliyan:</strong> '+esc(p.kliyan||'—')+'<br><strong>Tel:</strong> '+esc(p.telefon||'—')+'<br><strong>Chantye:</strong> '+esc(p.adres||'—')+'</div>'
+    + '<div><strong>'+t('pv_devisNo')+':</strong> '+esc(p.devisNo)+'<br><strong>'+t('pv_dat')+':</strong> '+esc(p.dat)+'<br><strong>'+t('pv_valab')+':</strong> '+esc(p.validite||30)+' '+t('pv_jou')+'</div>'
+    + '<div style="text-align:right;"><strong>'+t('pv_kliyan')+':</strong> '+esc(p.kliyan||'—')+'<br><strong>'+t('pv_telefon')+':</strong> '+esc(p.telefon||'—')+'<br><strong>'+t('pv_adresChantye')+':</strong> '+esc(p.adres||'—')+'</div>'
   + '</div>'
-  + '<p style="font-size:11px;font-style:italic;color:#444;margin-top:16px;">Nou gen onè soumèt pou pwojè "'+esc(p.projet||'san non')+'" devis ki swiv la, ki detaye materyo, travay ak kondisyon yo.</p>'
+  + '<p style="font-size:11px;font-style:italic;color:#444;margin-top:16px;">'+onèText+'</p>'
   + phaseBlocks
   + '<div style="margin-top:20px;padding-top:12px;border-top:1px solid #16232C;font-size:12px;">'
     + '<div style="display:flex;justify-content:space-between;padding:3px 0;"><span>'+t('pv_soutotal')+'</span><span>'+fmt(sub)+' HTG</span></div>'
     + '<div style="display:flex;justify-content:space-between;padding:3px 0;"><span>'+t('pv_majorasyon')+' ('+esc(p.majorasyon)+'%)</span><span>'+fmt(majAmt)+' HTG</span></div>'
-    + '<div style="display:flex;justify-content:space-between;padding:8px 0;margin-top:6px;border-top:1px double #16232C;font-weight:700;font-size:16px;"><span>Total Kontra</span><span>'+fmt(finalHTG)+' HTG</span></div>'
+    + '<div style="display:flex;justify-content:space-between;padding:8px 0;margin-top:6px;border-top:1px double #16232C;font-weight:700;font-size:16px;"><span>'+t('pv_totalJeneral')+'</span><span>'+fmt(finalHTG)+' HTG</span></div>'
     + '<div style="display:flex;justify-content:flex-end;font-size:11px;color:#666;">≈ $'+fmt(finalUSD)+' USD</div>'
   + '</div>'
   + (trancheRows ? ('<div style="margin-top:14px;font-size:12px;"><strong>'+t('pv_echeansye')+'</strong>'+trancheRows+'</div>') : '')
   + '<div style="margin-top:16px;font-size:10px;color:#444;border-top:1px solid #ccc;padding-top:10px;font-style:italic;">'+esc(company.kondisyon||DEFAULT_TERMS)+'</div>'
   + '<div style="margin-top:36px;display:flex;justify-content:space-between;font-size:11px;">'
-    + '<div>Fèt nan ' + esc(company.adres||'____________') + ', dat '+esc(p.dat)+'</div>'
+    + '<div>'+fètNanText+'</div>'
   + '</div>'
   + devisSignatureBlock(company, '#16232C')
   + qrVerificationBlock(p, company)
