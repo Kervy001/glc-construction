@@ -486,7 +486,7 @@ var S = { view:'list', index:null, current:null, active:0, showSummary:false, sh
   editingMaterialId:null, editMatName:'', editMatUnit:'sak', editMatUnitCustom:'',
   editingSupplierId:null, editSupName:'', editSupZone:'', editSupPhone:'', editSupAddr:'',
   editingPriceId:null, editPriceAmt:'', editPriceType:'vann',
-  showStoreCatalog:false, storeCatalogSupplierId:null, storeCatalogSearch:'' };
+  pricePickerMode:'magazen', pricePickerSupplierId:null };
 function updAuthField(f,v){ S['auth'+f]=v; }
 function setLang(lang){
   S.lang = lang;
@@ -1737,10 +1737,15 @@ function openPricePicker(itemId){
   S.showPricePicker = true;
   S.pricePickerItemId = itemId;
   S.pricePickerSearch = '';
+  S.pricePickerMode = 'magazen';
+  S.pricePickerSupplierId = null;
   render();
   ensurePriceLibraryLoaded().then(function(){ render(); });
 }
-function closePricePicker(){ S.showPricePicker=false; S.pricePickerItemId=null; render(); }
+function closePricePicker(){ S.showPricePicker=false; S.pricePickerItemId=null; S.pricePickerSupplierId=null; render(); }
+function setPricePickerMode(m){ S.pricePickerMode=m; S.pricePickerSearch=''; S.pricePickerSupplierId=null; render(); }
+function viewPricePickerSupplier(supplierId){ S.pricePickerSupplierId = supplierId; render(); }
+function backToPricePickerSupplierList(){ S.pricePickerSupplierId = null; render(); }
 function applyPriceFromLibrary(materialId, supplierId, price, unit){
   if(blockIfReadOnly()){ closePricePicker(); return; }
   var itemId = S.pricePickerItemId;
@@ -1760,9 +1765,64 @@ function pricePickerModal(){
   if(!lib){
     return '<div class="modal-backdrop no-print" onclick="if(event.target===this)closePricePicker()"><div class="modal-sheet"><div style="text-align:center;padding:20px;">'+glcMark(24)+'</div></div></div>';
   }
-  var search = (S.pricePickerSearch||'').toLowerCase();
-  var matchedMats = lib.materials.filter(function(m){ return !search || m.non.toLowerCase().indexOf(search)>=0; });
-  var rows = matchedMats.map(function(m){
+  var modeTabs = '<div style="display:flex;background:rgba(22,35,44,.06);border-radius:10px;padding:3px;margin-bottom:12px;">'
+    + '<button onclick="setPricePickerMode(\'magazen\')" style="flex:1;border:none;background:'+(S.pricePickerMode==='magazen'?'var(--white)':'transparent')+';box-shadow:'+(S.pricePickerMode==='magazen'?'0 1px 3px rgba(0,0,0,.1)':'none')+';border-radius:8px;padding:7px 0;font-size:11px;font-weight:600;font-family:Inter,sans-serif;color:var(--ink);cursor:pointer;">Pa Magazen</button>'
+    + '<button onclick="setPricePickerMode(\'materyo\')" style="flex:1;border:none;background:'+(S.pricePickerMode==='materyo'?'var(--white)':'transparent')+';box-shadow:'+(S.pricePickerMode==='materyo'?'0 1px 3px rgba(0,0,0,.1)':'none')+';border-radius:8px;padding:7px 0;font-size:11px;font-weight:600;font-family:Inter,sans-serif;color:var(--ink);cursor:pointer;">Pa Materyo</button>'
+    + '</div>';
+
+  if(S.pricePickerMode==='magazen'){
+    if(S.pricePickerSupplierId){
+      var sup = lib.suppliers.find(function(s){return s.id===S.pricePickerSupplierId;});
+      if(!sup){
+        return '<div class="modal-backdrop no-print" onclick="if(event.target===this)closePricePicker()"><div class="modal-sheet"><p style="font-size:13px;">Founisè sa a pa egziste ankò.</p><button class="btn btn-ghost disp" onclick="backToPricePickerSupplierList()">Tounen</button></div></div>';
+      }
+      var entries = lib.prices.filter(function(p){return p.supplierId===sup.id;});
+      var articleRows = entries.length===0
+        ? '<p style="font-size:12px;color:var(--muted);text-align:center;padding:16px 0;">Pa gen atik ki anrejistre pou founisè sa a ankò.</p>'
+        : entries.map(function(p){
+            var mat = lib.materials.find(function(m){return m.id===p.materialId;});
+            return '<div onclick="applyPriceFromLibrary(\''+(mat?mat.id:'')+'\',\''+p.supplierId+'\','+p.pri+',\''+esc(mat?mat.inite:'')+'\')" style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--line);cursor:pointer;">'
+              + '<div><p style="font-size:13px;margin:0;">'+esc(mat?mat.non:'?')+'</p><p class="mono" style="font-size:9px;color:var(--muted);margin:2px 0 0;">'+(p.tip==='lwe'?'Lokasyon':'Vann')+' · pa '+esc(mat?mat.inite:'')+'</p></div>'
+              + '<span class="mono" style="font-weight:600;font-size:13px;color:var(--ink);">'+fmt(p.pri)+' G</span>'
+              + '</div>';
+          }).join('');
+      return '<div class="modal-backdrop no-print" onclick="if(event.target===this)closePricePicker()">'
+        + '<div class="modal-sheet">'
+        + '<div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;"><button onclick="backToPricePickerSupplierList()" style="padding:4px;">'+backIcon()+'</button><h3 class="disp" style="font-size:15px;font-weight:600;text-transform:uppercase;margin:0;flex:1;">'+esc(sup.non)+'</h3><button onclick="closePricePicker()">'+closeIcon()+'</button></div>'
+        + '<div class="card" style="margin-bottom:14px;">'
+          + (sup.zòn?('<p style="font-size:12px;margin:0 0 4px;">📍 '+esc(sup.zòn)+'</p>'):'')
+          + (sup.telefòn?('<p style="font-size:12px;margin:0 0 4px;">📞 '+esc(sup.telefòn)+'</p>'):'')
+          + (sup.adrès?('<p style="font-size:12px;margin:0;">🏠 '+esc(sup.adrès)+'</p>'):'')
+          + (!sup.zòn && !sup.telefòn && !sup.adrès ? '<p style="font-size:12px;color:var(--muted);margin:0;">Pa gen enfo kontak anrejistre.</p>' : '')
+        + '</div>'
+        + '<p class="mono" style="font-size:10px;text-transform:uppercase;color:var(--muted);margin:0 0 8px;">Atik Disponib ('+entries.length+') — klike sou yon pri pou mete l nan devi a</p>'
+        + '<div style="max-height:42vh;overflow-y:auto;">'+articleRows+'</div>'
+        + '</div></div>';
+    }
+    var search = (S.pricePickerSearch||'').toLowerCase();
+    var matchedSups = lib.suppliers.filter(function(s){ return !search || s.non.toLowerCase().indexOf(search)>=0 || (s.zòn||'').toLowerCase().indexOf(search)>=0; });
+    var rows = matchedSups.length===0
+      ? '<p style="font-size:12px;color:var(--muted);text-align:center;padding:20px 0;">Pa gen founisè ki koresponn. Kontakte administratè a pou ajoute nan bibliyotèk la.</p>'
+      : matchedSups.map(function(s){
+          var count = lib.prices.filter(function(p){return p.supplierId===s.id;}).length;
+          return '<div onclick="viewPricePickerSupplier(\''+s.id+'\')" style="display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid var(--line);cursor:pointer;">'
+            + '<div><p style="font-size:13px;font-weight:500;margin:0;">'+esc(s.non)+'</p><p class="mono" style="font-size:9px;color:var(--muted);margin:2px 0 0;">'+esc(s.zòn||'Pa gen zòn')+' · '+count+' atik</p></div>'
+            + '<span style="color:var(--muted);">'+chevronIcon()+'</span>'
+            + '</div>';
+        }).join('');
+    return '<div class="modal-backdrop no-print" onclick="if(event.target===this)closePricePicker()">'
+      + '<div class="modal-sheet">'
+      + '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;"><h3 class="disp" style="font-size:15px;font-weight:600;text-transform:uppercase;margin:0;">Chwazi Pri</h3><button onclick="closePricePicker()">'+closeIcon()+'</button></div>'
+      + modeTabs
+      + '<input value="'+escAttr(S.pricePickerSearch)+'" oninput="S.pricePickerSearch=this.value;render();" placeholder="Chèche magazen ki pi prè w (non oswa zòn)..." style="width:100%;font-size:13px;background:var(--white);border:1px solid var(--line);border-radius:8px;padding:9px;box-sizing:border-box;margin-bottom:10px;">'
+      + '<div style="max-height:50vh;overflow-y:auto;">'+rows+'</div>'
+      + '</div></div>';
+  }
+
+  // mode === 'materyo'
+  var search2 = (S.pricePickerSearch||'').toLowerCase();
+  var matchedMats = lib.materials.filter(function(m){ return !search2 || m.non.toLowerCase().indexOf(search2)>=0; });
+  var rows2 = matchedMats.map(function(m){
     var entries = lib.prices.filter(function(p){return p.materialId===m.id;});
     if(entries.length===0) return '';
     var entryRows = entries.map(function(p){
@@ -1774,76 +1834,13 @@ function pricePickerModal(){
     }).join('');
     return '<div style="margin-bottom:14px;"><p style="font-size:13px;font-weight:600;margin:0 0 4px;">'+esc(m.non)+' <span class="mono" style="font-size:10px;color:var(--muted);">('+esc(m.inite)+')</span></p>'+entryRows+'</div>';
   }).join('');
-  if(!rows) rows = '<p style="font-size:12px;color:var(--muted);text-align:center;padding:20px 0;">Pa gen pri ki koresponn. Kontakte administratè a pou ajoute nan bibliyotèk la.</p>';
+  if(!rows2) rows2 = '<p style="font-size:12px;color:var(--muted);text-align:center;padding:20px 0;">Pa gen pri ki koresponn. Kontakte administratè a pou ajoute nan bibliyotèk la.</p>';
   return '<div class="modal-backdrop no-print" onclick="if(event.target===this)closePricePicker()">'
     + '<div class="modal-sheet">'
     + '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;"><h3 class="disp" style="font-size:15px;font-weight:600;text-transform:uppercase;margin:0;">Chwazi Pri</h3><button onclick="closePricePicker()">'+closeIcon()+'</button></div>'
+    + modeTabs
     + '<input value="'+escAttr(S.pricePickerSearch)+'" oninput="S.pricePickerSearch=this.value;render();" placeholder="Chèche yon materyo..." style="width:100%;font-size:13px;background:var(--white);border:1px solid var(--line);border-radius:8px;padding:9px;box-sizing:border-box;margin-bottom:14px;">'
-    + '<div style="max-height:50vh;overflow-y:auto;">'+rows+'</div>'
-    + '</div></div>';
-}
-
-// ---- Store/supplier catalog: browse a supplier's full details + everything they sell/rent ----
-function openStoreCatalog(){
-  S.showStoreCatalog = true;
-  S.storeCatalogSupplierId = null;
-  S.storeCatalogSearch = '';
-  render();
-  ensurePriceLibraryLoaded().then(function(){ render(); });
-}
-function closeStoreCatalog(){ S.showStoreCatalog=false; S.storeCatalogSupplierId=null; render(); }
-function viewSupplierCatalog(supplierId){ S.storeCatalogSupplierId = supplierId; render(); }
-function backToSupplierList(){ S.storeCatalogSupplierId = null; render(); }
-function storeCatalogModal(){
-  if(!S.showStoreCatalog) return '';
-  var lib = S.priceLibrary;
-  if(!lib){
-    return '<div class="modal-backdrop no-print" onclick="if(event.target===this)closeStoreCatalog()"><div class="modal-sheet"><div style="text-align:center;padding:20px;">'+glcMark(24)+'</div></div></div>';
-  }
-  if(S.storeCatalogSupplierId){
-    var sup = lib.suppliers.find(function(s){return s.id===S.storeCatalogSupplierId;});
-    if(!sup){
-      return '<div class="modal-backdrop no-print" onclick="if(event.target===this)closeStoreCatalog()"><div class="modal-sheet"><p style="font-size:13px;">Founisè sa a pa egziste ankò.</p><button class="btn btn-ghost disp" onclick="backToSupplierList()">Tounen</button></div></div>';
-    }
-    var entries = lib.prices.filter(function(p){return p.supplierId===sup.id;});
-    var articleRows = entries.length===0
-      ? '<p style="font-size:12px;color:var(--muted);text-align:center;padding:16px 0;">Pa gen atik ki anrejistre pou founisè sa a ankò.</p>'
-      : entries.map(function(p){
-          var mat = lib.materials.find(function(m){return m.id===p.materialId;});
-          return '<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--line);">'
-            + '<div><p style="font-size:13px;margin:0;">'+esc(mat?mat.non:'?')+'</p><p class="mono" style="font-size:9px;color:var(--muted);margin:2px 0 0;">'+(p.tip==='lwe'?'Lokasyon':'Vann')+' · pa '+esc(mat?mat.inite:'')+'</p></div>'
-            + '<span class="mono" style="font-weight:600;font-size:13px;color:var(--ink);">'+fmt(p.pri)+' G</span>'
-            + '</div>';
-        }).join('');
-    return '<div class="modal-backdrop no-print" onclick="if(event.target===this)closeStoreCatalog()">'
-      + '<div class="modal-sheet">'
-      + '<div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;"><button onclick="backToSupplierList()" style="padding:4px;">'+backIcon()+'</button><h3 class="disp" style="font-size:15px;font-weight:600;text-transform:uppercase;margin:0;flex:1;">'+esc(sup.non)+'</h3><button onclick="closeStoreCatalog()">'+closeIcon()+'</button></div>'
-      + '<div class="card" style="margin-bottom:14px;">'
-        + (sup.zòn?('<p style="font-size:12px;margin:0 0 4px;">📍 '+esc(sup.zòn)+'</p>'):'')
-        + (sup.telefòn?('<p style="font-size:12px;margin:0 0 4px;">📞 '+esc(sup.telefòn)+'</p>'):'')
-        + (sup.adrès?('<p style="font-size:12px;margin:0;">🏠 '+esc(sup.adrès)+'</p>'):'')
-        + (!sup.zòn && !sup.telefòn && !sup.adrès ? '<p style="font-size:12px;color:var(--muted);margin:0;">Pa gen enfo kontak anrejistre.</p>' : '')
-      + '</div>'
-      + '<p class="mono" style="font-size:10px;text-transform:uppercase;color:var(--muted);margin:0 0 8px;">Atik Disponib ('+entries.length+')</p>'
-      + '<div style="max-height:45vh;overflow-y:auto;">'+articleRows+'</div>'
-      + '</div></div>';
-  }
-  var search = (S.storeCatalogSearch||'').toLowerCase();
-  var matchedSups = lib.suppliers.filter(function(s){ return !search || s.non.toLowerCase().indexOf(search)>=0 || (s.zòn||'').toLowerCase().indexOf(search)>=0; });
-  var rows = matchedSups.length===0
-    ? '<p style="font-size:12px;color:var(--muted);text-align:center;padding:20px 0;">Pa gen founisè ki koresponn. Kontakte administratè a pou ajoute nan bibliyotèk la.</p>'
-    : matchedSups.map(function(s){
-        var count = lib.prices.filter(function(p){return p.supplierId===s.id;}).length;
-        return '<div onclick="viewSupplierCatalog(\''+s.id+'\')" style="display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid var(--line);cursor:pointer;">'
-          + '<div><p style="font-size:13px;font-weight:500;margin:0;">'+esc(s.non)+'</p><p class="mono" style="font-size:9px;color:var(--muted);margin:2px 0 0;">'+esc(s.zòn||'Pa gen zòn')+' · '+count+' atik</p></div>'
-          + '<span style="color:var(--muted);">'+chevronIcon()+'</span>'
-          + '</div>';
-      }).join('');
-  return '<div class="modal-backdrop no-print" onclick="if(event.target===this)closeStoreCatalog()">'
-    + '<div class="modal-sheet">'
-    + '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;"><h3 class="disp" style="font-size:15px;font-weight:600;text-transform:uppercase;margin:0;">Magazen & Founisè</h3><button onclick="closeStoreCatalog()">'+closeIcon()+'</button></div>'
-    + '<input value="'+escAttr(S.storeCatalogSearch)+'" oninput="S.storeCatalogSearch=this.value;render();" placeholder="Chèche non oswa zòn..." style="width:100%;font-size:13px;background:var(--white);border:1px solid var(--line);border-radius:8px;padding:9px;box-sizing:border-box;margin-bottom:10px;">'
-    + '<div style="max-height:55vh;overflow-y:auto;">'+rows+'</div>'
+    + '<div style="max-height:50vh;overflow-y:auto;">'+rows2+'</div>'
     + '</div></div>';
 }
 
@@ -2001,8 +1998,7 @@ function renderEditor(){
     return '<div class="card" style="margin-bottom:10px;">'
     + '<div style="display:flex;align-items:flex-start;gap:8px;">'
     + '<input value="'+escAttr(it.d)+'" oninput="updItem(\''+it.id+'\',\'d\',this.value)" placeholder="Deziyasyon travay la" style="flex:1;font-size:13px;font-weight:500;background:transparent;border:none;padding:2px 0;">'
-    + '<button class="no-print" onclick="openPricePicker(\''+it.id+'\')" title="Pri Materyo — Bibliyotèk" style="color:var(--ink);background:rgba(255,178,0,.16);border-radius:6px;padding:2px 6px;flex-shrink:0;font-size:14px;">🏷️</button>'
-    + '<button class="no-print" onclick="openStoreCatalog()" title="Enfo Magazen/Founisè" style="color:var(--ink);background:rgba(22,35,44,.06);border-radius:6px;padding:4px;flex-shrink:0;">'+infoIcon()+'</button>'
+    + '<button class="no-print" onclick="openPricePicker(\''+it.id+'\')" title="Pri Materyo & Magazen" style="color:var(--ink);background:rgba(255,178,0,.16);border-radius:6px;padding:2px 6px;flex-shrink:0;font-size:14px;">🏷️</button>'
     + '<button class="no-print" onclick="removeItem(\''+it.id+'\')" style="color:rgba(22,35,44,.3);padding:2px;flex-shrink:0;">'+trashIcon()+'</button>'
     + '</div>'
     + '<div style="display:flex;gap:6px;margin-top:6px;flex-wrap:wrap;align-items:center;">'
@@ -2010,7 +2006,7 @@ function renderEditor(){
       + '<button class="chip'+(tip==='lokasyon'?' active':'')+'" style="padding:3px 10px;font-size:10px;" onclick="updItem(\''+it.id+'\',\'tip\',\'lokasyon\');render();">Lokasyon</button>'
       + '<select onchange="updItem(\''+it.id+'\',\'priceMode\',this.value);render();" style="margin-left:auto;font-size:10px;font-family:Inter,sans-serif;background:rgba(22,35,44,.06);border:1px solid var(--line);border-radius:999px;padding:4px 8px;color:var(--ink);">'
         + '<option value="inite" '+(!isFiks?'selected':'')+'>Materyo × Kantite</option>'
-        + '<option value="fiks" '+(isFiks?'selected':'')+'>Pri Fiks</option>'
+        + '<option value="fiks" '+(isFiks?'selected':'')+'>Pri fiks</option>'
       + '</select>'
     + '</div>'
     + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px;">'
@@ -2083,8 +2079,7 @@ function renderEditor(){
   + (S.showAddPhase ? addPhaseModal() : '')
   + (S.showSettings ? settingsModal() : '')
   + confirmModal()
-  + pricePickerModal()
-  + storeCatalogModal();
+  + pricePickerModal();
 }
 
 function clientInfoPanel(p){
@@ -2695,7 +2690,7 @@ function calcModal(p){
       + '</div>'
       + '<div style="margin-top:8px;">'+fieldHtml('Longè rekouvriman/ankraj (m)','<input type="text" inputmode="decimal" step="0.1" value="'+calcState.potoRecouvriman+'" name="cf_potoRecouvriman" oninput="calcUpd(\'potoRecouvriman\',this.value)" style="background:var(--white);border:1px solid var(--line);">')+'</div>'
       + resultBox([['Longè pa bar', fmt(potoLongèParBar)+' m'],['Total pye', fmt(potoPyeTotal)+' pye']], 'Bar Prensipal', fmt(potoBarNeeded))
-      + '<p style="font-size:11px;font-weight:600;text-transform:uppercase;color:var(--muted);margin:14px 0 6px;">Fè pou Etriye</p>'
+      + '<p style="font-size:11px;font-weight:600;text-transform:uppercase;color:var(--muted);margin:14px 0 6px;">Fè Etriye (ligati)</p>'
       + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">'
       + fieldHtml('Espasman etriye (cm)','<input type="text" inputmode="decimal" value="'+calcState.potoEtriyeEspasman+'" name="cf_potoEtriyeEspasman" oninput="calcUpd(\'potoEtriyeEspasman\',this.value)" style="background:var(--white);border:1px solid var(--line);">')
       + fieldHtml('Kouvèti beton (cm)','<input type="text" inputmode="decimal" step="0.5" value="'+calcState.potoKouvèti+'" name="cf_potoKouvèti" oninput="calcUpd(\'potoKouvèti\',this.value)" style="background:var(--white);border:1px solid var(--line);">')
@@ -2864,7 +2859,7 @@ function calcModal(p){
       + '</div>'
       + '<div style="margin-top:8px;">'+fieldHtml('Longè rekouvriman/ankraj (m)','<input type="text" inputmode="decimal" step="0.1" value="'+calcState.poutRecouvriman+'" name="cf_poutRecouvriman" oninput="calcUpd(\'poutRecouvriman\',this.value)" style="background:var(--white);border:1px solid var(--line);">')+'</div>'
       + resultBox([['Longè pa bar', fmt(poutLongèParBar)+' m'],['Total pye', fmt(poutPyeTotal)+' pye']], 'Bar Prensipal', fmt(poutBarNeeded))
-      + '<p style="font-size:11px;font-weight:600;text-transform:uppercase;color:var(--muted);margin:14px 0 6px;">Fè pou Etriye</p>'
+      + '<p style="font-size:11px;font-weight:600;text-transform:uppercase;color:var(--muted);margin:14px 0 6px;">Fè Etriye (ligati)</p>'
       + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">'
       + fieldHtml('Espasman etriye (cm)','<input type="text" inputmode="decimal" value="'+calcState.poutEtriyeEspasman+'" name="cf_poutEtriyeEspasman" oninput="calcUpd(\'poutEtriyeEspasman\',this.value)" style="background:var(--white);border:1px solid var(--line);">')
       + fieldHtml('Kouvèti beton (cm)','<input type="text" inputmode="decimal" step="0.5" value="'+calcState.poutKouvèti+'" name="cf_poutKouvèti" oninput="calcUpd(\'poutKouvèti\',this.value)" style="background:var(--white);border:1px solid var(--line);">')
