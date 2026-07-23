@@ -2864,7 +2864,7 @@ function calcModal(p){
       + '</div>'
       + '<div style="margin-top:8px;">'+fieldHtml('Longè rekouvriman/ankraj (m)','<input type="text" inputmode="decimal" step="0.1" value="'+calcState.poutRecouvriman+'" name="cf_poutRecouvriman" oninput="calcUpd(\'poutRecouvriman\',this.value)" style="background:var(--white);border:1px solid var(--line);">')+'</div>'
       + resultBox([['Longè pa bar', fmt(poutLongèParBar)+' m'],['Total pye', fmt(poutPyeTotal)+' pye']], 'Bar Prensipal', fmt(poutBarNeeded))
-      + '<p style="font-size:11px;font-weight:600;text-transform:uppercase;color:var(--muted);margin:14px 0 6px;">Fè Etriye (ligati)</p>'
+      + '<p style="font-size:11px;font-weight:600;text-transform:uppercase;color:var(--muted);margin:14px 0 6px;">Fè pou Etriye</p>'
       + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">'
       + fieldHtml('Espasman etriye (cm)','<input type="text" inputmode="decimal" value="'+calcState.poutEtriyeEspasman+'" name="cf_poutEtriyeEspasman" oninput="calcUpd(\'poutEtriyeEspasman\',this.value)" style="background:var(--white);border:1px solid var(--line);">')
       + fieldHtml('Kouvèti beton (cm)','<input type="text" inputmode="decimal" step="0.5" value="'+calcState.poutKouvèti+'" name="cf_poutKouvèti" oninput="calcUpd(\'poutKouvèti\',this.value)" style="background:var(--white);border:1px solid var(--line);">')
@@ -3501,5 +3501,3 @@ if('serviceWorker' in navigator){
 </script>
 </body>
 </html>
-
-  
