@@ -829,9 +829,12 @@ window.addEventListener('fb-auth-changed', function(e){
 // don't leave the person stuck on a spinner forever.
 setTimeout(function(){ if(!S.authChecked){ S.authChecked = true; render(); } }, 6000);
 
-function isAdminUser(){ return !!(S.user && ADMIN_EMAILS.indexOf(S.user.email)>=0); }
+function isPrincipalAdmin(){ return !!(S.user && ADMIN_EMAILS.indexOf(S.user.email)>=0); }
+function isAdminUser(){ return !!(S.user && (ADMIN_EMAILS.indexOf(S.user.email)>=0 || (S.subscription && S.subscription.isAdmin===true))); }
+function isVipUser(){ return !!(S.subscription && S.subscription.vip===true); }
 function isSubExpired(){
   if(isAdminUser()) return false;
+  if(isVipUser()) return false;
   if(!S.subChecked || !S.subscription) return false;
   var exp = new Date(S.subscription.expiresAt);
   if(isNaN(exp.getTime())) return false;
@@ -1069,7 +1072,12 @@ function renderList(){
           }).join('') + '</div>'))
     + '</div>';
 
-  var trialBanner = (S.subscription && S.subscription.plan==='esè' && !isAdminUser() && !isReadOnlyMode())
+  var vipBanner = (isVipUser() && !isAdminUser())
+    ? '<div class="card" style="margin-bottom:14px;background:rgba(255,178,0,.10);border-color:rgba(255,178,0,.4);">'
+      + '<p style="font-size:12px;margin:0;">🎟️ <strong>Byenveni!</strong> Ou gen yon Tikè VIP — aksè konplè san limit.</p>'
+      + '</div>'
+    : '';
+  var trialBanner = (isVipUser()) ? '' : (S.subscription && S.subscription.plan==='esè' && !isAdminUser() && !isReadOnlyMode())
     ? (function(){
         var exp = new Date(S.subscription.expiresAt);
         var daysLeft = Math.max(0, Math.ceil((exp-new Date())/(1000*60*60*24)));
@@ -1089,6 +1097,7 @@ function renderList(){
     + fullLogo(240)
     + '<p class="mono" style="font-size:10px;color:var(--muted);text-align:center;margin:2px 0 0;">'+t('tagline')+'</p>'
     + '<p style="font-size:12px;color:var(--muted);margin:14px 0 16px;">'+t('dashboard_intro')+'</p>'
+    + vipBanner
     + trialBanner
     + summaryCards
     + (isReadOnlyMode()
@@ -1272,12 +1281,34 @@ async function exportBackup(){
     for(var i=0;i<list.length;i++){
       try{ var r = await window.storage.get('devis:data:'+list[i].id); if(r) data.projects[list[i].id]=JSON.parse(r.value); }catch(e){}
     }
-    var blob = new Blob([JSON.stringify(data,null,2)], {type:'application/json'});
-    var url = URL.createObjectURL(blob);
-    var a = document.createElement('a');
-    a.href = url; a.download = 'glc-construction-sovgad-'+new Date().toISOString().slice(0,10)+'.json';
-    document.body.appendChild(a); a.click(); document.body.removeChild(a);
-    setTimeout(function(){URL.revokeObjectURL(url);}, 2000);
+    var filename = 'glc-construction-sovgad-'+new Date().toISOString().slice(0,10)+'.json';
+    var jsonStr = JSON.stringify(data,null,2);
+    // application/octet-stream (rather than application/json) discourages mobile
+    // browsers/webviews from opening the file inline as text instead of saving it.
+    var blob = new Blob([jsonStr], {type:'application/octet-stream'});
+
+    // Prefer the native share sheet on mobile — it lets the person actually
+    // save/send the file. Some installed-PWA webviews ignore the <a download>
+    // attribute and just navigate to the raw JSON instead of downloading it.
+    var shared = false;
+    if(navigator.canShare && window.File){
+      try{
+        var file = new File([blob], filename, {type:'application/json'});
+        if(navigator.canShare({files:[file]})){
+          await navigator.share({files:[file], title:'Sovgad GLC Construction'});
+          shared = true;
+        }
+      }catch(shareErr){
+        if(shareErr && shareErr.name==='AbortError') return; // person closed the share sheet — not an error
+      }
+    }
+    if(!shared){
+      var url = URL.createObjectURL(blob);
+      var a = document.createElement('a');
+      a.href = url; a.download = filename;
+      document.body.appendChild(a); a.click(); document.body.removeChild(a);
+      setTimeout(function(){URL.revokeObjectURL(url);}, 2000);
+    }
     addNotif('Sovgad ekspòte ('+list.length+' pwojè)');
   }catch(e){ alertMsg('Erè pandan ekspòtasyon an.'); }
 }
@@ -1434,6 +1465,38 @@ async function suspendSubscription(uid){
     render();
   }catch(e){ alertMsg('Erè pandan operasyon an.'); }
 }
+async function toggleAdminRole(uid){
+  if(!isPrincipalAdmin()){ alertMsg('Sèl Admin Prensipal la ka bay oswa retire wòl administratè.'); return; }
+  if(!window.FB || !S.adminUsers) return;
+  var u = S.adminUsers.find(function(x){return x.uid===uid;});
+  if(!u) return;
+  if(ADMIN_EMAILS.indexOf(u.email)>=0){ alertMsg('Moun sa a se yon Admin Prensipal — pa ka chanje sa nan panel la.'); return; }
+  var next = !u.isAdmin;
+  var updated = Object.assign({}, u, { isAdmin: next });
+  delete updated.uid;
+  try{
+    await window.FB.saveSubscription(uid, updated);
+    var idx = S.adminUsers.findIndex(function(x){return x.uid===uid;});
+    if(idx>=0) S.adminUsers[idx] = Object.assign({uid:uid}, updated);
+    alertMsg(next ? 'Moun sa a se administratè kounye a.' : 'Wòl administratè a retire.');
+    render();
+  }catch(e){ alertMsg('Erè pandan operasyon an.'); }
+}
+async function toggleVip(uid){
+  if(!window.FB || !S.adminUsers) return;
+  var u = S.adminUsers.find(function(x){return x.uid===uid;});
+  if(!u) return;
+  var next = !u.vip;
+  var updated = Object.assign({}, u, { vip: next });
+  delete updated.uid;
+  try{
+    await window.FB.saveSubscription(uid, updated);
+    var idx = S.adminUsers.findIndex(function(x){return x.uid===uid;});
+    if(idx>=0) S.adminUsers[idx] = Object.assign({uid:uid}, updated);
+    alertMsg(next ? 'Tikè VIP bay.' : 'Tikè VIP retire.');
+    render();
+  }catch(e){ alertMsg('Erè pandan operasyon an.'); }
+}
 function renderAdmin(){
   var all = S.adminUsers || [];
   var nEse = all.filter(function(u){return subStatusOf(u)==='esè';}).length;
@@ -1457,10 +1520,16 @@ function renderAdmin(){
         var exp = u.expiresAt ? new Date(u.expiresAt) : null;
         var daysDiff = exp && !isNaN(exp.getTime()) ? Math.ceil((exp-new Date())/(1000*60*60*24)) : null;
         var daysLabel = daysDiff===null ? '' : (daysDiff>=0 ? daysDiff+' jou rete' : Math.abs(daysDiff)+' jou pase');
+        var isPrincipal = ADMIN_EMAILS.indexOf(u.email)>=0;
+        var badges = (isPrincipal ? '<span class="mono" style="font-size:8px;font-weight:600;text-transform:uppercase;color:#fff;background:#16232C;border-radius:4px;padding:2px 6px;">👑 Prensipal</span>' : '')
+          + (!isPrincipal && u.isAdmin ? '<span class="mono" style="font-size:8px;font-weight:600;text-transform:uppercase;color:#fff;background:#5B6B74;border-radius:4px;padding:2px 6px;">🛡️ Admin</span>' : '')
+          + (u.vip ? '<span class="mono" style="font-size:8px;font-weight:600;text-transform:uppercase;color:var(--ink);background:var(--accent);border-radius:4px;padding:2px 6px;">🎟️ VIP</span>' : '');
         return '<div class="card" style="margin-bottom:8px;">'
           + '<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;">'
             + '<div style="min-width:0;"><p style="font-size:13px;font-weight:600;margin:0;word-break:break-all;">'+esc(u.email||u.uid)+'</p>'
-            + '<p class="mono" style="font-size:9px;color:var(--muted);margin:3px 0 0;">'+(exp?('Ekspire: '+exp.toLocaleDateString('fr-HT')+' · '+daysLabel):'Pa gen dat')+'</p></div>'
+            + '<p class="mono" style="font-size:9px;color:var(--muted);margin:3px 0 0;">'+(exp?('Ekspire: '+exp.toLocaleDateString('fr-HT')+' · '+daysLabel):'Pa gen dat')+'</p>'
+            + (badges ? '<div style="display:flex;gap:4px;flex-wrap:wrap;margin-top:5px;">'+badges+'</div>' : '')
+            + '</div>'
             + '<span class="mono" style="font-size:8px;font-weight:600;text-transform:uppercase;color:#fff;background:'+STATUS_COLORS[status]+';border-radius:4px;padding:2px 6px;flex-shrink:0;">'+STATUS_LABELS[status]+'</span>'
           + '</div>'
           + '<div style="display:flex;gap:6px;margin-top:10px;flex-wrap:wrap;">'
@@ -1471,6 +1540,10 @@ function renderAdmin(){
           + '<div style="display:flex;gap:6px;margin-top:6px;">'
             + '<input id="customDays-'+u.uid+'" type="number" placeholder="Kantite jou pèsonalize" style="flex:1;min-width:0;box-sizing:border-box;font-size:11px;background:var(--white);border:1px solid var(--line);border-radius:6px;padding:6px 8px;">'
             + '<button class="btn btn-ghost disp" style="font-size:10px;padding:6px 10px;flex-shrink:0;" onclick="activateSubscriptionCustom(\''+u.uid+'\')">Aplike</button>'
+          + '</div>'
+          + '<div style="display:flex;gap:6px;margin-top:6px;flex-wrap:wrap;border-top:1px solid var(--line);padding-top:8px;">'
+            + '<button class="btn disp" style="font-size:10px;padding:6px 10px;background:'+(u.vip?'rgba(192,57,43,.1)':'rgba(255,178,0,.16)')+';color:var(--ink);" onclick="toggleVip(\''+u.uid+'\')">'+(u.vip?'🎟️ Retire VIP':'🎟️ Bay Tikè VIP')+'</button>'
+            + (isPrincipalAdmin() && !isPrincipal ? '<button class="btn disp" style="font-size:10px;padding:6px 10px;background:'+(u.isAdmin?'rgba(192,57,43,.1)':'rgba(22,35,44,.06)')+';color:var(--ink);" onclick="toggleAdminRole(\''+u.uid+'\')">'+(u.isAdmin?'🛡️ Retire Admin':'🛡️ Fè Administratè')+'</button>' : '')
           + '</div>'
         + '</div>';
       }).join('');
@@ -2015,7 +2088,7 @@ function renderEditor(){
     + '</div>'
     + '<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-top:8px;">'
     + fieldHtml(isFiks?'Pri M.(Fiks)':'Pri M.(× Kantite)','<input type="number" value="'+it.pm+'" oninput="updItem(\''+it.id+'\',\'pm\',this.value)">')
-    + fieldHtml('Pri Mendèv (Fiks)','<input type="number" value="'+it.pmo+'" oninput="updItem(\''+it.id+'\',\'pmo\',this.value)">')
+    + fieldHtml('Pri Mendèv (Fiks','<input type="number" value="'+it.pmo+'" oninput="updItem(\''+it.id+'\',\'pmo\',this.value)">')
     + '<div><label class="mono" style="display:block;font-size:9px;text-transform:uppercase;color:var(--muted);margin-bottom:3px;">Total</label><div id="total-'+it.id+'" class="mono" style="font-size:12px;font-weight:600;background:rgba(22,35,44,.05);border-radius:6px;padding:7px 8px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">'+fmt(itemTotal(it))+'</div></div>'
     + '</div></div>';
   }).join('');
