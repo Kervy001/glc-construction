@@ -2299,7 +2299,7 @@ function summaryModal(p, totals, sub, majAmt, finalHTG){
     + '<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:10px;padding-top:10px;border-top:1px solid var(--line);"><label style="font-size:13px;color:var(--muted);flex:1;">To chanj (HTG pou 1 USD)</label><input type="text" inputmode="decimal" name="proj_tauxUSD" value="'+p.tauxUSD+'" oninput="updProj(\'tauxUSD\',this.value)" style="width:64px;font-size:13px;background:var(--paper);border-radius:6px;padding:5px 8px;text-align:right;"></div>'
   + '</div>'
   + '<div style="background:var(--ink);color:var(--paper);border-radius:12px;padding:14px 16px;margin-top:12px;">'
-    + '<div style="display:flex;justify-content:space-between;align-items:center;"><span class="disp" style="font-size:13px;text-transform:uppercase;">Total Jeneral</span><span class="disp" style="font-size:20px;font-weight:700;color:var(--ink);">'+fmt(finalHTG)+' HTG</span></div>'
+    + '<div style="display:flex;justify-content:space-between;align-items:center;"><span class="disp" style="font-size:13px;text-transform:uppercase;">Total Jeneral</span><span class="disp" style="font-size:20px;font-weight:700;color:var(--accent);">'+fmt(finalHTG)+' HTG</span></div>'
     + '<div style="display:flex;justify-content:space-between;margin-top:4px;opacity:.7;"><span class="mono" style="font-size:11px;">≈ Ekivalan USD</span><span class="mono" style="font-size:13px;">$'+fmt(finalUSD)+'</span></div>'
   + '</div>'
   + '<div class="card" style="margin-top:12px;">'
@@ -2932,7 +2932,7 @@ function resultBox(lines, bigLabel, bigVal){
   var lh = lines.map(function(l){ return '<div style="display:flex;justify-content:space-between;font-size:11px;opacity:.75;margin-top:2px;"><span>'+esc(l[0])+'</span><span class="mono">'+l[1]+'</span></div>'; }).join('');
   return '<div style="background:var(--ink);color:var(--paper);border-radius:12px;padding:12px 14px;margin-top:12px;">'
     + lh
-    + '<div style="display:flex;justify-content:space-between;margin-top:'+(lines.length?'6px':'0')+';"><span class="disp" style="font-size:13px;text-transform:uppercase;">'+esc(bigLabel)+'</span><span class="disp" style="font-size:20px;font-weight:700;color:var(--ink);">'+bigVal+'</span></div>'
+    + '<div style="display:flex;justify-content:space-between;margin-top:'+(lines.length?'6px':'0')+';"><span class="disp" style="font-size:13px;text-transform:uppercase;">'+esc(bigLabel)+'</span><span class="disp" style="font-size:20px;font-weight:700;color:var(--accent);">'+bigVal+'</span></div>'
   + '</div>';
 }
 function destRow(opts, selId, onchange, onclick){
