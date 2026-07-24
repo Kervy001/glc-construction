@@ -78,7 +78,7 @@ textarea{width:100%;font-size:13px;background:var(--paper);border-radius:6px;pad
     onAuthStateChanged, signOut, sendPasswordResetEmail, sendEmailVerification
   } from "https://www.gstatic.com/firebasejs/12.15.0/firebase-auth.js";
   import {
-    getFirestore, doc, setDoc, getDoc, deleteDoc, collection, getDocs
+    getFirestore, doc, setDoc, getDoc, deleteDoc, collection, getDocs, query, where, or
   } from "https://www.gstatic.com/firebasejs/12.15.0/firebase-firestore.js";
 
   var firebaseConfig = {
@@ -95,6 +95,10 @@ textarea{width:100%;font-size:13px;background:var(--paper);border-radius:6px;pad
   var db = getFirestore(fbApp);
   var googleProvider = new GoogleAuthProvider();
   var currentFbUser = null;
+
+  // Sekondè app — pou kreye kont Admin/Ajan san sa pa dekonekte sesyon aktyèl la
+  var fbAppSecondary = initializeApp(firebaseConfig, 'secondary');
+  var authSecondary = getAuth(fbAppSecondary);
 
   function friendlyErr(e){
     var code = (e && e.code) || '';
@@ -152,6 +156,48 @@ textarea{width:100%;font-size:13px;background:var(--paper);border-radius:6px;pad
       return getDocs(collection(db, 'subscriptions')).then(function(qs){
         var out = [];
         qs.forEach(function(d){ out.push(Object.assign({uid:d.id}, d.data())); });
+        return out;
+      });
+    },
+    // ---- Jesyon Ekip (Admin/Ajan) ----
+    createStaffAccount: function(email, password){
+      // Kreye kont Firebase Auth atravè yon app sekondè pou sesyon aktyèl la pa afekte
+      return createUserWithEmailAndPassword(authSecondary, email, password)
+        .then(function(cred){
+          var uid = cred.user.uid;
+          return signOut(authSecondary).then(function(){ return uid; });
+        })
+        .catch(function(e){ throw new Error(friendlyErr(e)); });
+    },
+    saveAdminProfile: function(uid, dataObj){ return setDoc(doc(db, 'adminProfiles', uid), dataObj); },
+    loadAdminProfile: function(uid){
+      return getDoc(doc(db, 'adminProfiles', uid)).then(function(snap){ return snap.exists() ? snap.data() : null; });
+    },
+    listAdminProfiles: function(){
+      return getDocs(collection(db, 'adminProfiles')).then(function(qs){
+        var out = [];
+        qs.forEach(function(d){ out.push(Object.assign({uid:d.id}, d.data())); });
+        return out;
+      });
+    },
+    deleteAdminProfile: function(uid){ return deleteDoc(doc(db, 'adminProfiles', uid)); },
+    // ---- Konfigirasyon (pri plan + komisyon) ----
+    loadConfig: function(key){
+      return getDoc(doc(db, 'config', key)).then(function(snap){ return snap.exists() ? snap.data() : null; });
+    },
+    saveConfig: function(key, dataObj){ return setDoc(doc(db, 'config', key), dataObj); },
+    // ---- Vant (tranzaksyon plan vandi) ----
+    saveSale: function(saleId, dataObj){ return setDoc(doc(db, 'sales', saleId), dataObj); },
+    // role: 'principal' -> tout dosye; 'admin' -> pwòp vant li + vant ajan anba li; 'agent' -> sèl pwòp vant li
+    // (Règ Firestore yo depann sou resource.data pou Admin/Ajan, kidonk yon lekti san filt ap rejte pou yo)
+    listSales: function(role, uid){
+      var q;
+      if(role==='principal') q = collection(db, 'sales');
+      else if(role==='admin') q = query(collection(db, 'sales'), or(where('soldBy','==',uid), where('parentAdminId','==',uid)));
+      else q = query(collection(db, 'sales'), where('soldBy','==',uid));
+      return getDocs(q).then(function(qs){
+        var out = [];
+        qs.forEach(function(d){ out.push(Object.assign({id:d.id}, d.data())); });
         return out;
       });
     },
@@ -291,6 +337,10 @@ var STATUT_META = {
 var TYPE_PROJET_LIST = ['Rezidansyèl','Komèsyal','Piblik / Enstitisyonèl','Endistriyèl','Rénovasyon','Enfrastrikti','Lòt'];
 var COMMON_UNITS = ['sak','m²','m³','ml','pye','pye²','pye³','kg','lb','tòn','galon','lit','pyès','boul','fèy','wòl','forfè','kantite'];
 var ADMIN_EMAILS = ['lumatkervens4@gmail.com','limatkervens@gmail.com'];
+// Pri default pou plan yo (chak valè modifyab pa Admin Prensipal sèlman, estoke nan config/pricing)
+var DEFAULT_PRICING = { htg6:0, htg12:0, usd6:0, usd12:0 };
+// To komisyon default (fraksyon 0-1) — estoke nan config/commissions
+var DEFAULT_COMMISSIONS = { adminRate:0.20, agentRate:0.10 };
 var TRIAL_DAYS = 3;
 
 // ================= I18N (app interface only — devis content stays as typed) =================
@@ -486,7 +536,13 @@ var S = { view:'list', index:null, current:null, active:0, showSummary:false, sh
   editingMaterialId:null, editMatName:'', editMatUnit:'sak', editMatUnitCustom:'',
   editingSupplierId:null, editSupName:'', editSupZone:'', editSupPhone:'', editSupAddr:'',
   editingPriceId:null, editPriceAmt:'', editPriceType:'vann',
-  pricePickerMode:'magazen', pricePickerSupplierId:null };
+  pricePickerMode:'magazen', pricePickerSupplierId:null,
+  myAdminProfile:null, adminProfiles:null, salesList:null, pricingConfig:null, commissionConfig:null,
+  bizTab:'dashboard', bizBusy:false, financePeriod:'mois',
+  showCreateStaff:false, createStaffRole:'admin', createStaffName:'', createStaffEmail:'', createStaffPassword:'',
+  showRecordSale:false, saleClientEmail:'', salePlan:'6mwa', saleCurrency:'HTG', showEditPricing:false, showEditCommissions:false,
+  pricingFormHtg6:'', pricingFormHtg12:'', pricingFormUsd6:'', pricingFormUsd12:'',
+  commissionFormAdmin:'', commissionFormAgent:'' };
 function updAuthField(f,v){ S['auth'+f]=v; }
 function setLang(lang){
   S.lang = lang;
@@ -832,6 +888,15 @@ setTimeout(function(){ if(!S.authChecked){ S.authChecked = true; render(); } }, 
 function isPrincipalAdmin(){ return !!(S.user && ADMIN_EMAILS.indexOf(S.user.email)>=0); }
 function isAdminUser(){ return !!(S.user && (ADMIN_EMAILS.indexOf(S.user.email)>=0 || (S.subscription && S.subscription.isAdmin===true))); }
 function isVipUser(){ return !!(S.subscription && S.subscription.vip===true); }
+function isAgentUser(){ return !!(S.myAdminProfile && S.myAdminProfile.role==='agent' && S.myAdminProfile.active!==false); }
+function myRole(){
+  if(isPrincipalAdmin()) return 'principal';
+  if(isAgentUser()) return 'agent';
+  if(isAdminUser()) return 'admin';
+  return 'client';
+}
+function isStaffUser(){ return myRole()!=='client'; }
+function myUid(){ return S.user ? S.user.uid : null; }
 function isSubExpired(){
   if(isAdminUser()) return false;
   if(isVipUser()) return false;
@@ -849,6 +914,10 @@ function blockIfReadOnly(){
   return false;
 }
 async function checkSubscription(){
+  if(window.FB && S.user){
+    try{ S.myAdminProfile = await window.FB.loadAdminProfile(S.user.uid); }catch(e){ S.myAdminProfile = null; }
+  }
+  if(isAgentUser()){ S.subChecked=true; render(); return; }
   if(isAdminUser()){ S.subChecked=true; render(); return; }
   if(!window.FB || !S.user) return;
   try{
@@ -917,9 +986,11 @@ function render(){
   else { S.clientInfoOpen = false; S.progressOpen = false; }
   if(!S.authChecked || !S.user){ app.innerHTML = renderAuthGate(); updatePrintSheet(); return; }
   if(S.user.emailVerified===false && isNewAccount(S.user)){ app.innerHTML = renderVerifyEmailGate(); updatePrintSheet(); return; }
-  if(!S.subChecked && !isAdminUser()){ app.innerHTML = renderSubCheckingScreen(); return; }
+  if(!S.subChecked && !isStaffUser()){ app.innerHTML = renderSubCheckingScreen(); return; }
+  if(isAgentUser()){ app.innerHTML = renderAgentSpace(); return; }
   if(S.view==='admin'){ app.innerHTML = renderAdmin(); return; }
   if(S.view==='pricelib'){ app.innerHTML = renderPriceLibraryAdmin(); return; }
+  if(S.view==='business'){ app.innerHTML = renderBusiness(); return; }
   if(S.view==='trash'){ app.innerHTML = renderTrash(); return; }
   if(S.view==='list'){ app.innerHTML = renderList(); }
   else { app.innerHTML = renderEditor(); }
@@ -1091,6 +1162,7 @@ function renderList(){
     + '<div style="display:flex;justify-content:flex-end;align-items:center;gap:8px;margin-bottom:2px;">'
       + (S.user ? '<span class="mono" style="font-size:9px;color:#2E7D32;display:flex;align-items:center;gap:4px;"><span style="width:6px;height:6px;border-radius:50%;background:#2E7D32;"></span>'+esc(S.user.email)+'</span>' : '')
       + (isAdminUser() ? '<button onclick="openAdminPanel()" style="padding:6px;background:rgba(255,178,0,.16);border-radius:8px;color:var(--ink);" title="Panel Admin">'+shieldIcon()+'</button>' : '')
+      + (isAdminUser() ? '<button onclick="openBusinessPanel()" style="padding:6px;background:rgba(46,125,50,.14);border-radius:8px;color:var(--ink);" title="Tablo Finansye / Ekip">'+briefcaseIcon()+'</button>' : '')
       + '<button onclick="openTrashView()" style="position:relative;padding:6px;background:rgba(22,35,44,.06);border-radius:8px;" title="Kòbèy">'+trashIcon()+(trashCount>0?('<span class="mono" style="position:absolute;top:-4px;right:-4px;background:#C0392B;color:#fff;font-size:8px;font-weight:700;border-radius:999px;min-width:15px;height:15px;display:flex;align-items:center;justify-content:center;padding:0 3px;">'+trashCount+'</span>'):'')+'</button>'
       + '<button onclick="toggleSettings(true)" style="padding:6px;background:rgba(22,35,44,.06);border-radius:8px;" title="Paramèt">'+gearIcon()+'</button>'
     + '</div>'
@@ -1567,6 +1639,495 @@ function renderAdmin(){
     + '</div>'
     + rows
     + '</div>';
+}
+
+// ================= BIZNIS: EKIP, FINANS, VANT =================
+function genSaleId(){ return 's'+Date.now()+'_'+Math.random().toString(36).slice(2,8); }
+function pricingOf(){ return S.pricingConfig || DEFAULT_PRICING; }
+function commissionsOf(){ return S.commissionConfig || DEFAULT_COMMISSIONS; }
+function priceForPlan(plan, currency){
+  var p = pricingOf();
+  if(plan==='12mwa') return currency==='USD' ? Number(p.usd12)||0 : Number(p.htg12)||0;
+  return currency==='USD' ? Number(p.usd6)||0 : Number(p.htg6)||0;
+}
+function staffName(uid){
+  if(!uid) return '—';
+  if(S.user && uid===S.user.uid) return S.user.email;
+  var pr = (S.adminProfiles||[]).find(function(a){return a.uid===uid;});
+  if(pr) return pr.name || pr.email || uid;
+  if(ADMIN_EMAILS.indexOf(uid)>=0) return uid;
+  return uid;
+}
+function profileOf(uid){ return (S.adminProfiles||[]).find(function(a){return a.uid===uid;}); }
+function computeCommissionSplit(price, soldByRole){
+  var rates = commissionsOf();
+  price = Number(price)||0;
+  if(soldByRole==='agent'){
+    var agentAmt = round2(price*(Number(rates.agentRate)||0));
+    var adminAmt = round2(price*(Number(rates.adminRate)||0));
+    return { agent:agentAmt, admin:adminAmt, principal: round2(price-agentAmt-adminAmt) };
+  }
+  if(soldByRole==='admin'){
+    var adminAmt2 = round2(price*(Number(rates.adminRate)||0));
+    return { agent:0, admin:adminAmt2, principal: round2(price-adminAmt2) };
+  }
+  return { agent:0, admin:0, principal:price };
+}
+function round2(n){ return Math.round((Number(n)||0)*100)/100; }
+
+function openBusinessPanel(){
+  if(!isAdminUser()) return;
+  S.view='business'; S.bizTab='dashboard'; render();
+  loadBusinessData();
+}
+function closeBusinessPanel(){ S.view='list'; render(); }
+async function loadBusinessData(){
+  if(!window.FB) return;
+  S.bizBusy = true; render();
+  try{
+    var jobs = [window.FB.listAdminProfiles(), window.FB.listSales(myRole(), S.user.uid), window.FB.loadConfig('pricing'), window.FB.loadConfig('commissions')];
+    if(!S.adminUsers) jobs.push(window.FB.listAllSubscriptions());
+    var res = await Promise.all(jobs);
+    S.adminProfiles = res[0] || [];
+    S.salesList = res[1] || [];
+    S.pricingConfig = res[2] || DEFAULT_PRICING;
+    S.commissionConfig = res[3] || DEFAULT_COMMISSIONS;
+    if(res[4]) S.adminUsers = res[4];
+  }catch(e){ S.adminProfiles = S.adminProfiles||[]; S.salesList = S.salesList||[]; }
+  S.bizBusy = false; render();
+}
+function setBizTab(tab){ S.bizTab = tab; render(); }
+
+// ---- Ekip: kreye Admin / Ajan ----
+function openCreateStaff(role){
+  S.showCreateStaff = true; S.createStaffRole = role; S.createStaffName=''; S.createStaffEmail=''; S.createStaffPassword=''; render();
+}
+function closeCreateStaff(){ S.showCreateStaff=false; render(); }
+async function submitCreateStaff(){
+  var role = S.createStaffRole;
+  var name = (S.createStaffName||'').trim();
+  var email = (S.createStaffEmail||'').trim();
+  var pw = S.createStaffPassword||'';
+  if(!name || !email || pw.length<6){ alertMsg('Ranpli non, imèl, ak yon modpas (6+ karaktè).'); return; }
+  if(role==='admin' && !isPrincipalAdmin()){ alertMsg('Sèl Admin Prensipal la ka kreye yon Administratè.'); return; }
+  try{
+    var uid = await window.FB.createStaffAccount(email, pw);
+    var profile = {
+      role: role, name: name, email: email,
+      parentAdminId: role==='agent' ? S.user.uid : null,
+      createdBy: S.user.uid, createdAt: new Date().toISOString(), active: true
+    };
+    await window.FB.saveAdminProfile(uid, profile);
+    S.adminProfiles = (S.adminProfiles||[]).concat([Object.assign({uid:uid}, profile)]);
+    S.showCreateStaff = false;
+    alertMsg((role==='admin'?'Administratè':'Ajan Komèsyal')+' kreye avèk siksè.');
+    render();
+  }catch(e){ alertMsg(e.message || 'Erè pandan kreyasyon kont lan.'); }
+}
+async function toggleStaffActive(uid){
+  var pr = profileOf(uid); if(!pr) return;
+  var updated = Object.assign({}, pr, { active: !pr.active }); delete updated.uid;
+  try{
+    await window.FB.saveAdminProfile(uid, updated);
+    var idx = S.adminProfiles.findIndex(function(a){return a.uid===uid;});
+    if(idx>=0) S.adminProfiles[idx] = Object.assign({uid:uid}, updated);
+    render();
+  }catch(e){ alertMsg('Erè pandan operasyon an.'); }
+}
+function confirmDeleteStaff(uid){
+  askConfirm('Efase kont sa a nèt nan ekip la? Aksyon sa a pa ka anile.', function(){ deleteStaff(uid); }, {yesLabel:'Efase'});
+}
+async function deleteStaff(uid){
+  try{ await window.FB.deleteAdminProfile(uid); S.adminProfiles = (S.adminProfiles||[]).filter(function(a){return a.uid!==uid;}); alertMsg('Kont efase.'); render(); }
+  catch(e){ alertMsg('Erè pandan efasman an.'); }
+}
+
+// ---- Pri plan & Komisyon (Admin Prensipal sèlman) ----
+function openEditPricing(){
+  var p = pricingOf();
+  S.pricingFormHtg6=p.htg6||''; S.pricingFormHtg12=p.htg12||''; S.pricingFormUsd6=p.usd6||''; S.pricingFormUsd12=p.usd12||'';
+  S.showEditPricing = true; render();
+}
+function closeEditPricing(){ S.showEditPricing=false; render(); }
+async function submitPricing(){
+  if(!isPrincipalAdmin()){ alertMsg('Sèl Admin Prensipal la ka chanje pri yo.'); return; }
+  var updated = { htg6:Number(S.pricingFormHtg6)||0, htg12:Number(S.pricingFormHtg12)||0, usd6:Number(S.pricingFormUsd6)||0, usd12:Number(S.pricingFormUsd12)||0 };
+  try{ await window.FB.saveConfig('pricing', updated); S.pricingConfig = updated; S.showEditPricing=false; alertMsg('Pri yo mete ajou.'); render(); }
+  catch(e){ alertMsg('Erè pandan sovgad la.'); }
+}
+function openEditCommissions(){
+  var c = commissionsOf();
+  S.commissionFormAdmin = Math.round((Number(c.adminRate)||0)*100);
+  S.commissionFormAgent = Math.round((Number(c.agentRate)||0)*100);
+  S.showEditCommissions = true; render();
+}
+function closeEditCommissions(){ S.showEditCommissions=false; render(); }
+async function submitCommissions(){
+  if(!isPrincipalAdmin()){ alertMsg('Sèl Admin Prensipal la ka chanje to komisyon yo.'); return; }
+  var updated = { adminRate: (Number(S.commissionFormAdmin)||0)/100, agentRate: (Number(S.commissionFormAgent)||0)/100 };
+  try{ await window.FB.saveConfig('commissions', updated); S.commissionConfig = updated; S.showEditCommissions=false; alertMsg('To komisyon mete ajou.'); render(); }
+  catch(e){ alertMsg('Erè pandan sovgad la.'); }
+}
+
+// ---- Anrejistre yon vant ----
+function openRecordSale(){
+  S.showRecordSale=true; S.saleClientEmail=''; S.salePlan='6mwa'; S.saleCurrency='HTG'; render();
+}
+function closeRecordSale(){ S.showRecordSale=false; render(); }
+async function submitRecordSale(){
+  var email = (S.saleClientEmail||'').trim().toLowerCase();
+  if(!email){ alertMsg('Antre imèl kliyan an.'); return; }
+  var client = (S.adminUsers||[]).find(function(u){ return (u.email||'').toLowerCase()===email; });
+  if(!client){ alertMsg('Pa jwenn okenn kliyan ak imèl sa a. Kliyan an dwe kreye kont li nan app la anvan.'); return; }
+  var role = myRole();
+  var price = priceForPlan(S.salePlan, S.saleCurrency);
+  var split = computeCommissionSplit(price, role);
+  var saleId = genSaleId();
+  var pending = (role==='agent');
+  var sale = {
+    clientUid: client.uid, clientEmail: client.email||email, plan: S.salePlan, price: price, currency: S.saleCurrency,
+    paymentStatus: pending ? 'annatant' : 'peye',
+    soldBy: S.user.uid, soldByName: S.user.email, soldByRole: role,
+    parentAdminId: role==='agent' ? (profileOf(S.user.uid) ? profileOf(S.user.uid).parentAdminId : null) : null,
+    approvedBy: pending ? null : S.user.uid, approvedByName: pending ? null : S.user.email,
+    createdAt: new Date().toISOString(), approvedAt: pending ? null : new Date().toISOString(),
+    commissionAgent: split.agent, commissionAdmin: split.admin, commissionPrincipal: split.principal
+  };
+  try{
+    await window.FB.saveSale(saleId, sale);
+    S.salesList = (S.salesList||[]).concat([Object.assign({id:saleId}, sale)]);
+    if(!pending){ await activateSubscriptionFromSale(client.uid, S.salePlan); }
+    S.showRecordSale=false;
+    alertMsg(pending ? 'Vant anrejistre — ap tann apwobasyon Administratè a.' : 'Vant anrejistre e abònman aktive.');
+    render();
+  }catch(e){ alertMsg('Erè pandan anrejistreman vant lan.'); }
+}
+async function activateSubscriptionFromSale(uid, plan){
+  var u = (S.adminUsers||[]).find(function(x){return x.uid===uid;});
+  if(!u) return;
+  var months = plan==='12mwa' ? 12 : 6;
+  var base = new Date();
+  var currentExp = u.expiresAt ? new Date(u.expiresAt) : null;
+  if(currentExp && !isNaN(currentExp.getTime()) && currentExp>base) base = currentExp;
+  base.setMonth(base.getMonth()+months);
+  var updated = Object.assign({}, u, { plan: plan, expiresAt: base.toISOString(), activatedAt: new Date().toISOString() });
+  delete updated.uid;
+  await window.FB.saveSubscription(uid, updated);
+  var idx = S.adminUsers.findIndex(function(x){return x.uid===uid;});
+  if(idx>=0) S.adminUsers[idx] = Object.assign({uid:uid}, updated);
+}
+async function approveSale(saleId){
+  var sale = (S.salesList||[]).find(function(s){return s.id===saleId;});
+  if(!sale) return;
+  if(!(isPrincipalAdmin() || sale.parentAdminId===S.user.uid)){ alertMsg('Ou pa gen dwa apwouve vant sa a.'); return; }
+  var updated = Object.assign({}, sale, { paymentStatus:'peye', approvedBy:S.user.uid, approvedByName:S.user.email, approvedAt:new Date().toISOString() });
+  delete updated.id;
+  try{
+    await window.FB.saveSale(saleId, updated);
+    await activateSubscriptionFromSale(sale.clientUid, sale.plan);
+    var idx = S.salesList.findIndex(function(s){return s.id===saleId;});
+    if(idx>=0) S.salesList[idx] = Object.assign({id:saleId}, updated);
+    alertMsg('Vant apwouve — abònman kliyan an aktive.');
+    render();
+  }catch(e){ alertMsg('Erè pandan apwobasyon an.'); }
+}
+function confirmRejectSale(saleId){
+  askConfirm('Anile vant sa a?', function(){ rejectSale(saleId); }, {yesLabel:'Anile Vant'});
+}
+async function rejectSale(saleId){
+  var sale = (S.salesList||[]).find(function(s){return s.id===saleId;});
+  if(!sale) return;
+  var updated = Object.assign({}, sale, { paymentStatus:'anile' }); delete updated.id;
+  try{
+    await window.FB.saveSale(saleId, updated);
+    var idx = S.salesList.findIndex(function(s){return s.id===saleId;});
+    if(idx>=0) S.salesList[idx] = Object.assign({id:saleId}, updated);
+    render();
+  }catch(e){ alertMsg('Erè pandan operasyon an.'); }
+}
+
+// ---- Estatistik & filtraj peryòd ----
+function periodStart(period){
+  var d = new Date();
+  if(period==='jou'){ d.setHours(0,0,0,0); return d; }
+  if(period==='semèn'){ var day=d.getDay()||7; d.setDate(d.getDate()-day+1); d.setHours(0,0,0,0); return d; }
+  if(period==='mwa'){ return new Date(d.getFullYear(), d.getMonth(), 1); }
+  if(period==='ane'){ return new Date(d.getFullYear(), 0, 1); }
+  return new Date(0);
+}
+function paidSales(){ return (S.salesList||[]).filter(function(s){ return s.paymentStatus==='peye'; }); }
+function revenueTotals(list){
+  var out = {HTG:0, USD:0};
+  list.forEach(function(s){ out[s.currency] = (out[s.currency]||0) + (Number(s.price)||0); });
+  return out;
+}
+function fmtMoney(n, cur){ return fmt(n)+' '+cur; }
+
+function renderBusiness(){
+  if(S.showCreateStaff) return renderCreateStaffModal();
+  if(S.showEditPricing) return renderEditPricingModal();
+  if(S.showEditCommissions) return renderEditCommissionsModal();
+  if(S.showRecordSale) return renderRecordSaleModal();
+  var tabs = [['dashboard','📊 Tablo Finansye'],['team','👥 Ekip'],['sales','💳 Vant']];
+  return '<div class="wrap" style="padding:24px 16px 40px;">'
+    + '<div style="display:flex;align-items:center;gap:10px;margin-bottom:16px;">'
+      + '<button onclick="closeBusinessPanel()" style="padding:6px;background:rgba(22,35,44,.06);border-radius:8px;">'+backIcon()+'</button>'
+      + '<h1 class="disp" style="font-size:16px;font-weight:700;text-transform:uppercase;margin:0;">Biznis</h1>'
+      + '<button onclick="loadBusinessData()" style="margin-left:auto;padding:6px;background:rgba(22,35,44,.06);border-radius:8px;" title="Rafrechi">'+downloadIcon()+'</button>'
+    + '</div>'
+    + '<div class="scrollx" style="margin-bottom:16px;">'
+      + tabs.map(function(t){ return '<button class="chip'+(S.bizTab===t[0]?' active':'')+'" onclick="setBizTab(\''+t[0]+'\')">'+t[1]+'</button>'; }).join('')
+    + '</div>'
+    + (S.bizBusy ? '<p style="text-align:center;color:var(--muted);font-size:12px;">Ap chaje...</p>' : '')
+    + (S.bizTab==='dashboard' ? renderBizDashboard() : S.bizTab==='team' ? renderBizTeam() : renderBizSales())
+    + '</div>'
+    + confirmModal();
+}
+
+function renderBizDashboard(){
+  var paid = paidSales();
+  var totalClients = (S.adminUsers||[]).length;
+  var totals = revenueTotals(paid);
+  var periods = [['jou','Jodi a'],['semèn','Semèn nan'],['mwa','Mwa a'],['ane','Ane a']];
+  var periodSales = paid.filter(function(s){ return new Date(s.createdAt) >= periodStart(S.financePeriod); });
+  var periodTotals = revenueTotals(periodSales);
+
+  // revni pa administratè/ajan
+  var byStaff = {};
+  paid.forEach(function(s){
+    var key = s.soldBy;
+    if(!byStaff[key]) byStaff[key] = { name:staffName(key), role:s.soldByRole, count:0, htg:0, usd:0, commission:0 };
+    byStaff[key].count++;
+    byStaff[key][s.currency==='USD'?'usd':'htg'] += Number(s.price)||0;
+    byStaff[key].commission += (s.soldByRole==='agent'?(Number(s.commissionAgent)||0):(s.soldByRole==='admin'?(Number(s.commissionAdmin)||0):0));
+  });
+  var staffRows = Object.keys(byStaff).map(function(k){ return byStaff[k]; }).sort(function(a,b){ return (b.htg+b.usd)-(a.htg+a.usd); });
+
+  var commissionsOwed = paid.reduce(function(acc,s){ return acc + (Number(s.commissionAdmin)||0) + (Number(s.commissionAgent)||0); }, 0);
+
+  return '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:14px;">'
+    + statCard('Total Kliyan', totalClients, '#16232C')
+    + statCard('Vant Konfime', paid.length, '#2E7D32')
+    + statCard('Revni HTG', fmt(totals.HTG), '#FFB200')
+    + statCard('Revni USD', fmt(totals.USD), '#B14B27')
+    + '</div>'
+    + '<div class="card" style="margin-bottom:14px;">'
+      + '<p class="mono" style="font-size:9px;text-transform:uppercase;color:var(--muted);margin:0 0 8px;">Komisyon total (Admin+Ajan)</p>'
+      + '<p class="disp" style="font-size:20px;font-weight:700;margin:0;">'+fmt(commissionsOwed)+'</p>'
+      + '<p style="font-size:10px;color:var(--muted);margin:4px 0 0;">Rès la ap tounen Admin Prensipal la.</p>'
+    + '</div>'
+    + (isPrincipalAdmin() ? '<div style="display:flex;gap:6px;margin-bottom:14px;">'
+        + '<button class="btn btn-ghost disp" style="flex:1;justify-content:center;font-size:11px;" onclick="openEditPricing()">💲 Pri Plan</button>'
+        + '<button class="btn btn-ghost disp" style="flex:1;justify-content:center;font-size:11px;" onclick="openEditCommissions()">📐 To Komisyon</button>'
+      + '</div>' : '')
+    + '<p class="mono" style="font-size:10px;text-transform:uppercase;color:var(--muted);margin:16px 0 8px;">Revni pa Peryòd</p>'
+    + '<div class="scrollx" style="margin-bottom:10px;">'
+      + periods.map(function(p){ return '<button class="chip'+(S.financePeriod===p[0]?' active':'')+'" onclick="S.financePeriod=\''+p[0]+'\';render();">'+p[1]+'</button>'; }).join('')
+    + '</div>'
+    + '<div class="card" style="margin-bottom:14px;">'
+      + '<p style="font-size:13px;margin:0;">HTG : <strong>'+fmt(periodTotals.HTG)+'</strong> &nbsp;·&nbsp; USD : <strong>'+fmt(periodTotals.USD)+'</strong></p>'
+      + '<p style="font-size:10px;color:var(--muted);margin:4px 0 0;">'+periodSales.length+' vant konfime pou peryòd sa a</p>'
+    + '</div>'
+    + '<p class="mono" style="font-size:10px;text-transform:uppercase;color:var(--muted);margin:16px 0 8px;">Revni pa Vandè</p>'
+    + (staffRows.length===0 ? '<p style="font-size:12px;color:var(--muted);">Poko gen vant konfime.</p>' : staffRows.map(function(r){
+        return '<div class="card" style="margin-bottom:8px;">'
+          + '<div style="display:flex;justify-content:space-between;align-items:center;">'
+            + '<p style="font-size:13px;font-weight:600;margin:0;">'+esc(r.name)+'</p>'
+            + '<span class="mono" style="font-size:8px;text-transform:uppercase;color:#fff;background:'+(r.role==='admin'?'#5B6B74':r.role==='agent'?'#B14B27':'#16232C')+';border-radius:4px;padding:2px 6px;">'+esc(r.role)+'</span>'
+          + '</div>'
+          + '<p class="mono" style="font-size:10px;color:var(--muted);margin:4px 0 0;">'+r.count+' vant · '+fmt(r.htg)+' HTG · '+fmt(r.usd)+' USD · komisyon '+fmt(r.commission)+'</p>'
+        + '</div>';
+      }).join(''));
+}
+
+function renderBizTeam(){
+  var admins = (S.adminProfiles||[]).filter(function(a){ return a.role==='admin'; });
+  var principalRow = '<div class="card" style="margin-bottom:8px;background:rgba(22,35,44,.04);">'
+    + '<p style="font-size:13px;font-weight:600;margin:0;">👑 '+esc(S.user.email)+' (Ou)</p>'
+    + '<p class="mono" style="font-size:9px;color:var(--muted);margin:3px 0 0;">Admin Prensipal · kontwòl total</p>'
+    + '</div>';
+  function agentsUnder(adminUid){ return (S.adminProfiles||[]).filter(function(a){ return a.role==='agent' && a.parentAdminId===adminUid; }); }
+  function staffStats(uid){
+    var mine = paidSales().filter(function(s){ return s.soldBy===uid; });
+    var t = revenueTotals(mine);
+    return mine.length+' vant · '+fmt(t.HTG)+' HTG · '+fmt(t.USD)+' USD';
+  }
+  var adminBlocks = admins.map(function(a){
+    var agents = agentsUnder(a.uid);
+    return '<div class="card" style="margin-bottom:8px;">'
+      + '<div style="display:flex;justify-content:space-between;align-items:flex-start;">'
+        + '<div><p style="font-size:13px;font-weight:600;margin:0;">🛡️ '+esc(a.name||a.email)+'</p>'
+        + '<p class="mono" style="font-size:9px;color:var(--muted);margin:3px 0 0;word-break:break-all;">'+esc(a.email)+'</p>'
+        + '<p class="mono" style="font-size:9px;color:var(--muted);margin:3px 0 0;">'+staffStats(a.uid)+'</p></div>'
+        + (a.active===false ? '<span class="mono" style="font-size:8px;color:#fff;background:#C0392B;border-radius:4px;padding:2px 6px;">Inaktif</span>' : '')
+      + '</div>'
+      + (isPrincipalAdmin() ? '<div style="display:flex;gap:6px;margin-top:8px;">'
+          + '<button class="btn btn-ghost disp" style="font-size:10px;padding:5px 8px;" onclick="toggleStaffActive(\''+a.uid+'\')">'+(a.active===false?'Reyaktive':'Dezaktive')+'</button>'
+          + '<button class="btn btn-ghost disp" style="font-size:10px;padding:5px 8px;color:#C0392B;" onclick="confirmDeleteStaff(\''+a.uid+'\')">Efase</button>'
+        + '</div>' : '')
+      + (agents.length ? '<div style="margin-top:10px;padding-left:10px;border-left:2px solid var(--line);">'
+          + agents.map(function(g){
+              return '<div style="margin-bottom:8px;">'
+                + '<div style="display:flex;justify-content:space-between;align-items:center;">'
+                  + '<p style="font-size:12px;font-weight:600;margin:0;">🧑\u200d💼 '+esc(g.name||g.email)+'</p>'
+                  + (g.active===false ? '<span class="mono" style="font-size:8px;color:#fff;background:#C0392B;border-radius:4px;padding:2px 6px;">Inaktif</span>' : '')
+                + '</div>'
+                + '<p class="mono" style="font-size:9px;color:var(--muted);margin:2px 0 0;">'+staffStats(g.uid)+'</p>'
+                + ((isPrincipalAdmin()||g.parentAdminId===S.user.uid) ? '<div style="display:flex;gap:6px;margin-top:4px;">'
+                    + '<button class="btn btn-ghost disp" style="font-size:9px;padding:4px 7px;" onclick="toggleStaffActive(\''+g.uid+'\')">'+(g.active===false?'Reyaktive':'Dezaktive')+'</button>'
+                    + '<button class="btn btn-ghost disp" style="font-size:9px;padding:4px 7px;color:#C0392B;" onclick="confirmDeleteStaff(\''+g.uid+'\')">Efase</button>'
+                  + '</div>' : '')
+              + '</div>';
+            }).join('')
+        + '</div>' : '<p style="font-size:10px;color:var(--muted);margin:8px 0 0;">Pa gen ajan komèsyal anba li.</p>')
+      + '</div>';
+  }).join('');
+
+  // pou yon Admin (pa Prensipal), montre sèl pwòp ajan li yo
+  var myOwnAgentsBlock = '';
+  if(!isPrincipalAdmin()){
+    var mine = agentsUnder(S.user.uid);
+    myOwnAgentsBlock = '<p class="mono" style="font-size:10px;text-transform:uppercase;color:var(--muted);margin:16px 0 8px;">Ajan Komèsyal Mwen</p>'
+      + (mine.length===0 ? '<p style="font-size:12px;color:var(--muted);">Ou poko gen ajan.</p>' : mine.map(function(g){
+          return '<div class="card" style="margin-bottom:8px;">'
+            + '<div style="display:flex;justify-content:space-between;align-items:center;">'
+              + '<p style="font-size:13px;font-weight:600;margin:0;">'+esc(g.name||g.email)+'</p>'
+              + (g.active===false ? '<span class="mono" style="font-size:8px;color:#fff;background:#C0392B;border-radius:4px;padding:2px 6px;">Inaktif</span>' : '')
+            + '</div>'
+            + '<p class="mono" style="font-size:9px;color:var(--muted);margin:3px 0 0;">'+staffStats(g.uid)+'</p>'
+            + '<div style="display:flex;gap:6px;margin-top:6px;">'
+              + '<button class="btn btn-ghost disp" style="font-size:10px;padding:5px 8px;" onclick="toggleStaffActive(\''+g.uid+'\')">'+(g.active===false?'Reyaktive':'Dezaktive')+'</button>'
+              + '<button class="btn btn-ghost disp" style="font-size:10px;padding:5px 8px;color:#C0392B;" onclick="confirmDeleteStaff(\''+g.uid+'\')">Efase</button>'
+            + '</div>'
+          + '</div>';
+        }).join(''));
+  }
+
+  return (isPrincipalAdmin() ? '<button class="btn btn-accent disp" style="width:100%;justify-content:center;margin-bottom:14px;font-size:12px;" onclick="openCreateStaff(\'admin\')">+ Kreye yon Administratè</button>' : '')
+    + '<button class="btn btn-ghost disp" style="width:100%;justify-content:center;margin-bottom:14px;font-size:12px;" onclick="openCreateStaff(\'agent\')">+ Kreye yon Ajan Komèsyal</button>'
+    + (isPrincipalAdmin() ? (principalRow + (admins.length===0 ? '<p style="font-size:12px;color:var(--muted);">Poko gen Administratè.</p>' : adminBlocks)) : myOwnAgentsBlock);
+}
+
+function renderBizSales(){
+  var all = (S.salesList||[]).slice().sort(function(a,b){ return new Date(b.createdAt)-new Date(a.createdAt); });
+  var pending = all.filter(function(s){
+    if(s.paymentStatus!=='annatant') return false;
+    return isPrincipalAdmin() || s.parentAdminId===S.user.uid;
+  });
+  var STATUS_LABELS = { peye:'Peye', annatant:'Ap Tann Apwobasyon', anile:'Anile' };
+  var STATUS_COLORS = { peye:'#2E7D32', annatant:'#B14B27', anile:'#C0392B' };
+  function saleRow(s, withActions){
+    return '<div class="card" style="margin-bottom:8px;">'
+      + '<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;">'
+        + '<div style="min-width:0;"><p style="font-size:13px;font-weight:600;margin:0;word-break:break-all;">'+esc(s.clientEmail)+'</p>'
+        + '<p class="mono" style="font-size:9px;color:var(--muted);margin:3px 0 0;">'+(s.plan==='12mwa'?'12 Mwa':'6 Mwa')+' · '+fmt(s.price)+' '+s.currency+' · pa '+esc(s.soldByName)+' ('+s.soldByRole+')</p>'
+        + '<p class="mono" style="font-size:9px;color:var(--muted);margin:2px 0 0;">'+new Date(s.createdAt).toLocaleDateString('fr-HT')+(s.approvedByName?(' · Apwouve pa '+esc(s.approvedByName)):'')+'</p></div>'
+        + '<span class="mono" style="font-size:8px;font-weight:600;text-transform:uppercase;color:#fff;background:'+STATUS_COLORS[s.paymentStatus]+';border-radius:4px;padding:2px 6px;flex-shrink:0;">'+STATUS_LABELS[s.paymentStatus]+'</span>'
+      + '</div>'
+      + (withActions ? '<div style="display:flex;gap:6px;margin-top:8px;">'
+          + '<button class="btn btn-accent disp" style="font-size:10px;padding:6px 10px;" onclick="approveSale(\''+s.id+'\')">Apwouve</button>'
+          + '<button class="btn btn-ghost disp" style="font-size:10px;padding:6px 10px;color:#C0392B;" onclick="confirmRejectSale(\''+s.id+'\')">Anile</button>'
+        + '</div>' : '')
+    + '</div>';
+  }
+  return '<button class="btn btn-accent disp" style="width:100%;justify-content:center;margin-bottom:14px;font-size:12px;" onclick="openRecordSale()">+ Anrejistre yon Vant</button>'
+    + (pending.length ? ('<p class="mono" style="font-size:10px;text-transform:uppercase;color:var(--muted);margin:0 0 8px;">Ap Tann Apwobasyon ('+pending.length+')</p>' + pending.map(function(s){ return saleRow(s, true); }).join('')) : '')
+    + '<p class="mono" style="font-size:10px;text-transform:uppercase;color:var(--muted);margin:16px 0 8px;">Istorik Vant</p>'
+    + (all.length===0 ? '<p style="font-size:12px;color:var(--muted);">Poko gen vant.</p>' : all.map(function(s){ return saleRow(s, false); }).join(''));
+}
+
+function renderCreateStaffModal(){
+  var role = S.createStaffRole;
+  return '<div class="wrap" style="padding:24px 16px 40px;">'
+    + '<h1 class="disp" style="font-size:16px;font-weight:700;text-transform:uppercase;margin:0 0 16px;">Kreye '+(role==='admin'?'Administratè':'Ajan Komèsyal')+'</h1>'
+    + '<div class="field" style="margin-bottom:10px;"><label>Non Konplè</label><input value="'+escAttr(S.createStaffName)+'" oninput="S.createStaffName=this.value;"></div>'
+    + '<div class="field" style="margin-bottom:10px;"><label>Imèl</label><input type="email" value="'+escAttr(S.createStaffEmail)+'" oninput="S.createStaffEmail=this.value;"></div>'
+    + '<div class="field" style="margin-bottom:16px;"><label>Modpas Tanporè</label><input type="text" value="'+escAttr(S.createStaffPassword)+'" oninput="S.createStaffPassword=this.value;"></div>'
+    + (role==='agent' ? '<p style="font-size:11px;color:var(--muted);margin:0 0 16px;">Ajan sa a ap rataché a ou menm.</p>' : '')
+    + '<div style="display:flex;gap:8px;">'
+      + '<button class="btn btn-ghost disp" style="flex:1;justify-content:center;" onclick="closeCreateStaff()">Anile</button>'
+      + '<button class="btn btn-accent disp" style="flex:1;justify-content:center;" onclick="submitCreateStaff()">Kreye</button>'
+    + '</div></div>';
+}
+function renderEditPricingModal(){
+  return '<div class="wrap" style="padding:24px 16px 40px;">'
+    + '<h1 class="disp" style="font-size:16px;font-weight:700;text-transform:uppercase;margin:0 0 16px;">Pri Plan yo</h1>'
+    + '<div class="field" style="margin-bottom:10px;"><label>6 Mwa — HTG</label><input type="number" value="'+escAttr(S.pricingFormHtg6)+'" oninput="S.pricingFormHtg6=this.value;"></div>'
+    + '<div class="field" style="margin-bottom:10px;"><label>12 Mwa — HTG</label><input type="number" value="'+escAttr(S.pricingFormHtg12)+'" oninput="S.pricingFormHtg12=this.value;"></div>'
+    + '<div class="field" style="margin-bottom:10px;"><label>6 Mwa — USD</label><input type="number" value="'+escAttr(S.pricingFormUsd6)+'" oninput="S.pricingFormUsd6=this.value;"></div>'
+    + '<div class="field" style="margin-bottom:16px;"><label>12 Mwa — USD</label><input type="number" value="'+escAttr(S.pricingFormUsd12)+'" oninput="S.pricingFormUsd12=this.value;"></div>'
+    + '<div style="display:flex;gap:8px;">'
+      + '<button class="btn btn-ghost disp" style="flex:1;justify-content:center;" onclick="closeEditPricing()">Anile</button>'
+      + '<button class="btn btn-accent disp" style="flex:1;justify-content:center;" onclick="submitPricing()">Sovgade</button>'
+    + '</div></div>';
+}
+function renderEditCommissionsModal(){
+  return '<div class="wrap" style="padding:24px 16px 40px;">'
+    + '<h1 class="disp" style="font-size:16px;font-weight:700;text-transform:uppercase;margin:0 0 16px;">To Komisyon</h1>'
+    + '<div class="field" style="margin-bottom:10px;"><label>Administratè (%)</label><input type="number" value="'+escAttr(S.commissionFormAdmin)+'" oninput="S.commissionFormAdmin=this.value;"></div>'
+    + '<div class="field" style="margin-bottom:16px;"><label>Ajan Komèsyal (%)</label><input type="number" value="'+escAttr(S.commissionFormAgent)+'" oninput="S.commissionFormAgent=this.value;"></div>'
+    + '<p style="font-size:11px;color:var(--muted);margin:0 0 16px;">Rès pousantaj la (100% - Admin - Ajan) ap tounen Admin Prensipal la sou vant Ajan yo fè.</p>'
+    + '<div style="display:flex;gap:8px;">'
+      + '<button class="btn btn-ghost disp" style="flex:1;justify-content:center;" onclick="closeEditCommissions()">Anile</button>'
+      + '<button class="btn btn-accent disp" style="flex:1;justify-content:center;" onclick="submitCommissions()">Sovgade</button>'
+    + '</div></div>';
+}
+function renderRecordSaleModal(){
+  var price = priceForPlan(S.salePlan, S.saleCurrency);
+  return '<div class="wrap" style="padding:24px 16px 40px;">'
+    + '<h1 class="disp" style="font-size:16px;font-weight:700;text-transform:uppercase;margin:0 0 16px;">Anrejistre yon Vant</h1>'
+    + '<div class="field" style="margin-bottom:10px;"><label>Imèl Kliyan (dwe gen kont deja)</label><input type="email" value="'+escAttr(S.saleClientEmail)+'" oninput="S.saleClientEmail=this.value;"></div>'
+    + '<div class="field" style="margin-bottom:10px;"><label>Plan</label><select onchange="S.salePlan=this.value;render();">'
+      + '<option value="6mwa"'+(S.salePlan==='6mwa'?' selected':'')+'>6 Mwa</option>'
+      + '<option value="12mwa"'+(S.salePlan==='12mwa'?' selected':'')+'>12 Mwa</option>'
+    + '</select></div>'
+    + '<div class="field" style="margin-bottom:10px;"><label>Devise</label><select onchange="S.saleCurrency=this.value;render();">'
+      + '<option value="HTG"'+(S.saleCurrency==='HTG'?' selected':'')+'>Gourde (HTG)</option>'
+      + '<option value="USD"'+(S.saleCurrency==='USD'?' selected':'')+'>Dollar (USD)</option>'
+    + '</select></div>'
+    + '<p style="font-size:13px;margin:0 0 16px;">Pri : <strong>'+fmt(price)+' '+S.saleCurrency+'</strong></p>'
+    + (myRole()==='agent' ? '<p style="font-size:11px;color:var(--muted);margin:0 0 16px;">Vant sa a ap voye bay Administratè ou pou apwobasyon anvan abònman kliyan an aktive.</p>' : '')
+    + '<div style="display:flex;gap:8px;">'
+      + '<button class="btn btn-ghost disp" style="flex:1;justify-content:center;" onclick="closeRecordSale()">Anile</button>'
+      + '<button class="btn btn-accent disp" style="flex:1;justify-content:center;" onclick="submitRecordSale()">Konfime</button>'
+    + '</div></div>';
+}
+
+// ---- Espas Ajan Komèsyal (wòl restrenn — vann sèlman) ----
+function renderAgentSpace(){
+  if(S.showRecordSale) return renderRecordSaleModal();
+  var mine = (S.salesList||[]).filter(function(s){ return s.soldBy===S.user.uid; }).sort(function(a,b){ return new Date(b.createdAt)-new Date(a.createdAt); });
+  if(!S.salesList && !S.bizBusy){ loadBusinessData(); }
+  var paid = mine.filter(function(s){return s.paymentStatus==='peye';});
+  var totals = revenueTotals(paid);
+  var commission = paid.reduce(function(acc,s){ return acc+(Number(s.commissionAgent)||0); }, 0);
+  var STATUS_LABELS = { peye:'Peye', annatant:'Ap Tann', anile:'Anile' };
+  var STATUS_COLORS = { peye:'#2E7D32', annatant:'#B14B27', anile:'#C0392B' };
+  return '<div class="wrap" style="padding:24px 16px 40px;">'
+    + '<div style="display:flex;align-items:center;gap:10px;margin-bottom:16px;">'
+      + '<h1 class="disp" style="font-size:16px;font-weight:700;text-transform:uppercase;margin:0;">Espas Ajan Komèsyal</h1>'
+      + '<button onclick="window.FB.signOutUser()" style="margin-left:auto;padding:6px;background:rgba(22,35,44,.06);border-radius:8px;" title="Dekonekte">'+backIcon()+'</button>'
+    + '</div>'
+    + '<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:16px;">'
+      + statCard('Vant Peye', paid.length, '#2E7D32')
+      + statCard('HTG', fmt(totals.HTG), '#FFB200')
+      + statCard('USD', fmt(totals.USD), '#B14B27')
+    + '</div>'
+    + '<div class="card" style="margin-bottom:16px;">'
+      + '<p class="mono" style="font-size:9px;text-transform:uppercase;color:var(--muted);margin:0 0 6px;">Komisyon Total</p>'
+      + '<p class="disp" style="font-size:20px;font-weight:700;margin:0;">'+fmt(commission)+'</p>'
+    + '</div>'
+    + '<button class="btn btn-accent disp" style="width:100%;justify-content:center;margin-bottom:16px;font-size:12px;" onclick="openRecordSale()">+ Anrejistre yon Vant</button>'
+    + '<p class="mono" style="font-size:10px;text-transform:uppercase;color:var(--muted);margin:0 0 8px;">Istorik Vant Mwen</p>'
+    + (mine.length===0 ? '<p style="font-size:12px;color:var(--muted);">Ou poko fè okenn vant.</p>' : mine.map(function(s){
+        return '<div class="card" style="margin-bottom:8px;">'
+          + '<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;">'
+            + '<div><p style="font-size:13px;font-weight:600;margin:0;">'+esc(s.clientEmail)+'</p>'
+            + '<p class="mono" style="font-size:9px;color:var(--muted);margin:3px 0 0;">'+(s.plan==='12mwa'?'12 Mwa':'6 Mwa')+' · '+fmt(s.price)+' '+s.currency+'</p></div>'
+            + '<span class="mono" style="font-size:8px;font-weight:600;text-transform:uppercase;color:#fff;background:'+STATUS_COLORS[s.paymentStatus]+';border-radius:4px;padding:2px 6px;">'+STATUS_LABELS[s.paymentStatus]+'</span>'
+          + '</div></div>';
+      }).join(''))
+    + confirmModal();
 }
 
 // ================= BIBLIYOTÈK PRI MATERYÈL =================
@@ -3565,6 +4126,7 @@ function calcIcon(){ return '<svg class="icon" viewBox="0 0 24 24"><rect x="4" y
 function closeIcon(){ return '<svg class="icon" viewBox="0 0 24 24" style="width:20px;height:20px;"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>'; }
 function printIcon(){ return '<svg class="icon" viewBox="0 0 24 24"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>'; }
 function shieldIcon(){ return '<svg class="icon" viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>'; }
+function briefcaseIcon(){ return '<svg class="icon" viewBox="0 0 24 24"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg>'; }
 function gearIcon(){ return '<svg class="icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>'; }
 function downloadIcon(){ return '<svg class="icon" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>'; }
 function uploadIcon(){ return '<svg class="icon" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>'; }
