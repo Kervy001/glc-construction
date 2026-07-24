@@ -1002,6 +1002,10 @@ function render(){
     focusName = active.name;
     try{ selStart = active.selectionStart; selEnd = active.selectionEnd; }catch(e){}
   }
+  var winScrollX = window.scrollX, winScrollY = window.scrollY;
+  var oldSheets = app ? app.querySelectorAll('.modal-sheet') : [];
+  var sheetScrollTops = [];
+  for(var si=0; si<oldSheets.length; si++){ sheetScrollTops.push(oldSheets[si].scrollTop); }
   renderInner(app);
   if(focusName){
     var els = app.querySelectorAll('[name="'+focusName.replace(/"/g,'\\"')+'"]');
@@ -1011,6 +1015,9 @@ function render(){
       if(selStart!=null && el.setSelectionRange){ try{ el.setSelectionRange(selStart, selEnd); }catch(e){} }
     }
   }
+  var newSheets = app ? app.querySelectorAll('.modal-sheet') : [];
+  for(var sj=0; sj<newSheets.length && sj<sheetScrollTops.length; sj++){ newSheets[sj].scrollTop = sheetScrollTops[sj]; }
+  window.scrollTo(winScrollX, winScrollY);
 }
 function renderInner(app){
   if(S._skipPanelAutoClose){ S._skipPanelAutoClose = false; }
