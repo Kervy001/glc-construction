@@ -3056,6 +3056,11 @@ var calcState = { longe:'', wote:'', ouveti:'', blokM2:12.5, pet:5,
   betonEntries:[],
   potoLaje:20, potoEpes:20, potoWote:2.8, potoKantite:1, potoBetonType:'arme350', potoBetonPet:5,
   potoBarKantite:4, potoRecouvriman:0.4, potoKouvèti:2.5, potoEtriyeEspasman:15, potoLigatiLonge:0.30, destPoto:3,
+  potoAcierMode:'sel',
+  potoGrDiam1:'1/2" (#4)', potoGrNb1:4,
+  potoGrDiam2:'3/8" (#3)', potoGrNb2:2,
+  potoGrDiam3:'1/2" (#4)', potoGrNb3:0,
+  potoEtriyeDyamet:'3/8" (#3)',
   semelLonge:1, semelLaje:1, semelEpes:0.3, semelKantite:1, semelBetonType:'arme350', semelBetonPet:5,
   semelKouvèti:5, semelLigatiLonge:0.30, destSemel:2,
   semelForme:'isolee', semelNappes:1,
@@ -3306,16 +3311,42 @@ function calcModal(p){
   var potoSab = potoVol*potoCt.sab*potoPet;
   var potoGravye = potoVol*potoCt.gravye*potoPet;
   var potoDlo = potoVol*potoCt.dloL*potoPet;
-  var potoBarKantite = Number(calcState.potoBarKantite)||4;
   var potoLongèParBar = pWote + (Number(calcState.potoRecouvriman)||0);
-  var potoPyeTotal = potoLongèParBar*M_TO_FT*potoBarKantite*pKantite;
-  var potoBarNeeded = Math.ceil(potoPyeTotal/(Number(calcState.barLonge)||20));
+  var potoBarLongeFt = Number(calcState.barLonge)||20;
+  var potoIsMelanje = calcState.potoAcierMode==='melanje';
+  function potoGrCalc(diam, nb){
+    nb = Number(nb)||0;
+    var pye = potoLongèParBar*M_TO_FT*nb*pKantite;
+    var barNeeded = pye>0 ? Math.ceil(pye/potoBarLongeFt) : 0;
+    var w = REBAR[diam] || REBAR['1/2" (#4)'];
+    return {diam:diam, nb:nb, pye:pye, barNeeded:barNeeded, weight:pye*w};
+  }
+  var potoGroups, potoBarKantite, potoPyeTotal, potoBarNeeded, potoWeightTotal;
+  if(potoIsMelanje){
+    potoGroups = [
+      potoGrCalc(calcState.potoGrDiam1, calcState.potoGrNb1),
+      potoGrCalc(calcState.potoGrDiam2, calcState.potoGrNb2),
+      potoGrCalc(calcState.potoGrDiam3, calcState.potoGrNb3)
+    ].filter(function(g){ return g.nb>0; });
+    potoBarKantite = potoGroups.reduce(function(s,g){ return s+g.nb; }, 0);
+    potoPyeTotal = potoGroups.reduce(function(s,g){ return s+g.pye; }, 0);
+    potoBarNeeded = potoGroups.reduce(function(s,g){ return s+g.barNeeded; }, 0);
+    potoWeightTotal = potoGroups.reduce(function(s,g){ return s+g.weight; }, 0);
+  } else {
+    potoBarKantite = Number(calcState.potoBarKantite)||4;
+    var potoSingle = potoGrCalc(calcState.dyamet, potoBarKantite);
+    potoGroups = [potoSingle];
+    potoPyeTotal = potoSingle.pye;
+    potoBarNeeded = potoSingle.barNeeded;
+    potoWeightTotal = potoSingle.weight;
+  }
   var potoKouv = (Number(calcState.potoKouvèti)||2.5)/100;
   var potoPerimèt = Math.max(0, 2*((pLajeM-2*potoKouv)+(pEpesM-2*potoKouv))) + 0.20;
   var potoQtyEtriye = (Math.ceil((pWote*100)/(Number(calcState.potoEtriyeEspasman)||15))+1)*pKantite;
   var potoLongèEtriyeTotal = potoPerimèt*potoQtyEtriye;
   var potoPyeEtriye = potoLongèEtriyeTotal*M_TO_FT;
   var potoEtriyeBarNeeded = Math.ceil(potoPyeEtriye/(Number(calcState.barLonge)||20));
+  var potoEtriyeWeight = potoPyeEtriye*(REBAR[calcState.potoEtriyeDyamet]||REBAR['3/8" (#3)']);
   var potoLigatiKwazman = potoBarKantite*potoQtyEtriye;
   var potoLigatiTotal = potoLigatiKwazman*(Number(calcState.potoLigatiLonge)||0.30);
 
@@ -3516,20 +3547,42 @@ function calcModal(p){
       + fieldHtml('Pèt Beton (%)','<input type="text" inputmode="decimal" value="'+calcState.potoBetonPet+'" name="cf_potoBetonPet" oninput="calcUpd(\'potoBetonPet\',this.value)" style="background:var(--white);border:1px solid var(--line);">')
       + resultBox([['Volim beton', fmt(potoVol)+' m³'],['Ciman', fmt(potoCimentKg)+' kg'],['Sab', fmt(potoSab)+' m³'],['Gravye', fmt(potoGravye)+' m³'],['Dlo', fmt(potoDlo)+' L']], 'Sak Siman', fmt(potoCimentSak))
       + '<p style="font-size:11px;font-weight:600;text-transform:uppercase;color:var(--muted);margin:14px 0 6px;">Fè Prensipal (vètikal)</p>'
-      + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">'
-      + fieldHtml('Kantite bar / poto','<input type="text" inputmode="decimal" value="'+calcState.potoBarKantite+'" name="cf_potoBarKantite" oninput="calcUpd(\'potoBarKantite\',this.value)" style="background:var(--white);border:1px solid var(--line);">')
-      + '<div class="field"><label>Dyamèt</label><select name="cf_dyamet" onchange="calcUpd(\'dyamet\',this.value)" style="width:100%;font-size:13px;background:var(--white);border:1px solid var(--line);border-radius:6px;padding:7px 8px;">'
-        + Object.keys(REBAR).map(function(k){ return '<option value="'+esc(k)+'" '+(k===calcState.dyamet?'selected':'')+'>'+esc(k)+'</option>'; }).join('')
-      + '</select></div>'
+      + '<div style="display:flex;gap:6px;flex-wrap:wrap;">'
+        + '<button class="chip'+(!potoIsMelanje?' active':'')+'" onclick="calcUpd(\'potoAcierMode\',\'sel\')">Yon sèl dyamèt</button>'
+        + '<button class="chip'+(potoIsMelanje?' active':'')+'" onclick="calcUpd(\'potoAcierMode\',\'melanje\')">Melanje dyamèt</button>'
       + '</div>'
+      + (!potoIsMelanje ? (
+          '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px;">'
+          + fieldHtml('Kantite bar / poto','<input type="text" inputmode="decimal" value="'+calcState.potoBarKantite+'" name="cf_potoBarKantite" oninput="calcUpd(\'potoBarKantite\',this.value)" style="background:var(--white);border:1px solid var(--line);">')
+          + '<div class="field"><label>Dyamèt</label><select name="cf_dyamet" onchange="calcUpd(\'dyamet\',this.value)" style="width:100%;font-size:13px;background:var(--white);border:1px solid var(--line);border-radius:6px;padding:7px 8px;">'
+            + Object.keys(REBAR).map(function(k){ return '<option value="'+esc(k)+'" '+(k===calcState.dyamet?'selected':'')+'>'+esc(k)+'</option>'; }).join('')
+          + '</select></div>'
+          + '</div>'
+        ) : (
+          '<p class="mono" style="font-size:9px;color:var(--muted);margin:8px 0 6px;">Egzanp: 4 bar 1/2" + 2 bar 3/8" nan menm poto a — ranpli chak gwoup, kite kantite a 0 si w pa bezwen li.</p>'
+          + [1,2,3].map(function(gi){
+              var dk='potoGrDiam'+gi, nk='potoGrNb'+gi;
+              var opts = Object.keys(REBAR).map(function(k){ return '<option value="'+esc(k)+'" '+(k===calcState[dk]?'selected':'')+'>'+esc(k)+'</option>'; }).join('');
+              return '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px;">'
+                + fieldHtml('Kantite gwoup '+gi,'<input type="text" inputmode="decimal" value="'+calcState[nk]+'" name="cf_'+nk+'" oninput="calcUpd(\''+nk+'\',this.value)" style="background:var(--white);border:1px solid var(--line);">')
+                + '<div class="field"><label>Dyamèt gwoup '+gi+'</label><select name="cf_'+dk+'" onchange="calcUpd(\''+dk+'\',this.value)" style="width:100%;font-size:13px;background:var(--white);border:1px solid var(--line);border-radius:6px;padding:7px 8px;">'+opts+'</select></div>'
+                + '</div>';
+            }).join('')
+        ))
       + '<div style="margin-top:8px;">'+fieldHtml('Longè rekouvriman/ankraj (m)','<input type="text" inputmode="decimal" step="0.1" value="'+calcState.potoRecouvriman+'" name="cf_potoRecouvriman" oninput="calcUpd(\'potoRecouvriman\',this.value)" style="background:var(--white);border:1px solid var(--line);">')+'</div>'
-      + resultBox([['Longè pa bar', fmt(potoLongèParBar)+' m'],['Total pye', fmt(potoPyeTotal)+' pye']], 'Bar Prensipal', fmt(potoBarNeeded))
+      + (potoIsMelanje
+          ? resultBox(potoGroups.map(function(g){ return [g.nb+'× '+g.diam, fmt(g.weight)+' lbs ('+g.barNeeded+' bar)']; }), 'Total Bar Prensipal ('+potoBarKantite+' bar)', fmt(potoWeightTotal)+' lbs')
+          : resultBox([['Longè pa bar', fmt(potoLongèParBar)+' m'],['Total pye', fmt(potoPyeTotal)+' pye'],['Pwa', fmt(potoWeightTotal)+' lbs']], 'Bar Prensipal', fmt(potoBarNeeded))
+        )
       + '<p style="font-size:11px;font-weight:600;text-transform:uppercase;color:var(--muted);margin:14px 0 6px;">Fè Etriye (ligati)</p>'
       + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">'
       + fieldHtml('Espasman etriye (cm)','<input type="text" inputmode="decimal" value="'+calcState.potoEtriyeEspasman+'" name="cf_potoEtriyeEspasman" oninput="calcUpd(\'potoEtriyeEspasman\',this.value)" style="background:var(--white);border:1px solid var(--line);">')
       + fieldHtml('Kouvèti beton (cm)','<input type="text" inputmode="decimal" step="0.5" value="'+calcState.potoKouvèti+'" name="cf_potoKouvèti" oninput="calcUpd(\'potoKouvèti\',this.value)" style="background:var(--white);border:1px solid var(--line);">')
       + '</div>'
-      + resultBox([['Kantite etriye', fmt(potoQtyEtriye)],['Perimèt pa etriye', fmt(potoPerimèt)+' m'],['Total pye', fmt(potoPyeEtriye)+' pye']], 'Bar Etriye', fmt(potoEtriyeBarNeeded))
+      + '<div class="field" style="margin-top:8px;"><label>Dyamèt etriye</label><select name="cf_potoEtriyeDyamet" onchange="calcUpd(\'potoEtriyeDyamet\',this.value)" style="width:100%;font-size:13px;background:var(--white);border:1px solid var(--line);border-radius:6px;padding:7px 8px;">'
+        + Object.keys(REBAR).map(function(k){ return '<option value="'+esc(k)+'" '+(k===calcState.potoEtriyeDyamet?'selected':'')+'>'+esc(k)+'</option>'; }).join('')
+      + '</select></div>'
+      + resultBox([['Kantite etriye', fmt(potoQtyEtriye)],['Perimèt pa etriye', fmt(potoPerimèt)+' m'],['Total pye', fmt(potoPyeEtriye)+' pye']], 'Bar Etriye', fmt(potoEtriyeBarNeeded)+' ('+fmt(potoEtriyeWeight)+' lbs)')
       + '<p style="font-size:11px;font-weight:600;text-transform:uppercase;color:var(--muted);margin:14px 0 6px;">Fil Ligati</p>'
       + fieldHtml('Longè pou mare chak kwazman (m)','<input type="text" inputmode="decimal" step="0.05" value="'+calcState.potoLigatiLonge+'" name="cf_potoLigatiLonge" oninput="calcUpd(\'potoLigatiLonge\',this.value)" style="background:var(--white);border:1px solid var(--line);">')
       + resultBox([['Kwazman (bar × etriye)', fmt(potoLigatiKwazman)]], 'Fil Ligati', fmt(potoLigatiTotal)+' m')
@@ -3985,15 +4038,24 @@ function applyPoto(){ if(blockIfReadOnly()) return;
   var cimentKg = vol*ct.ciment*pet;
   var cimentSak = Math.ceil(cimentKg/sakKg);
   var sab = vol*ct.sab*pet, gravye = vol*ct.gravye*pet, dlo = vol*ct.dloL*pet;
-  var barKantite = Number(calcState.potoBarKantite)||4;
   var longèParBar = pWote + (Number(calcState.potoRecouvriman)||0);
-  var pyeTotal = longèParBar*M_TO_FT*barKantite*pKantite;
-  var barNeeded = Math.ceil(pyeTotal/(Number(calcState.barLonge)||20));
+  var barLongeFt = Number(calcState.barLonge)||20;
+  function grCalc(diam, nb){
+    nb = Number(nb)||0;
+    var pye = longèParBar*M_TO_FT*nb*pKantite;
+    var barNeeded = pye>0 ? Math.ceil(pye/barLongeFt) : 0;
+    return {diam:diam, nb:nb, barNeeded:barNeeded};
+  }
+  var isMelanje = calcState.potoAcierMode==='melanje';
+  var groups = isMelanje
+    ? [grCalc(calcState.potoGrDiam1,calcState.potoGrNb1), grCalc(calcState.potoGrDiam2,calcState.potoGrNb2), grCalc(calcState.potoGrDiam3,calcState.potoGrNb3)].filter(function(g){return g.nb>0;})
+    : [grCalc(calcState.dyamet, calcState.potoBarKantite)];
+  var barKantite = groups.reduce(function(s,g){ return s+g.nb; }, 0);
   var kouv = (Number(calcState.potoKouvèti)||2.5)/100;
   var perimèt = Math.max(0, 2*((pLajeM-2*kouv)+(pEpesM-2*kouv))) + 0.20;
   var qtyEtriye = (Math.ceil((pWote*100)/(Number(calcState.potoEtriyeEspasman)||15))+1)*pKantite;
   var pyeEtriye = (perimèt*qtyEtriye)*M_TO_FT;
-  var etriyeBarNeeded = Math.ceil(pyeEtriye/(Number(calcState.barLonge)||20));
+  var etriyeBarNeeded = Math.ceil(pyeEtriye/barLongeFt);
   var ligatiKwazman = barKantite*qtyEtriye;
   var ligatiTotal = ligatiKwazman*(Number(calcState.potoLigatiLonge)||0.30);
 
@@ -4001,8 +4063,10 @@ function applyPoto(){ if(blockIfReadOnly()) return;
   S.current.phases[d].items.push({id:nid(), d:'Sab — Poto', u:'m³', q:Math.round(sab*100)/100, pm:0, pmo:0});
   S.current.phases[d].items.push({id:nid(), d:'Gravye — Poto', u:'m³', q:Math.round(gravye*100)/100, pm:0, pmo:0});
   S.current.phases[d].items.push({id:nid(), d:'Dlo — Poto', u:'litè', q:Math.round(dlo), pm:0, pmo:0});
-  S.current.phases[d].items.push({id:nid(), d:'Fè Prensipal '+calcState.dyamet+' — Poto', u:'bar', q:barNeeded, pm:0, pmo:0});
-  S.current.phases[d].items.push({id:nid(), d:'Fè Etriye '+calcState.dyamet+' — Poto', u:'bar', q:etriyeBarNeeded, pm:0, pmo:0});
+  groups.forEach(function(g){
+    S.current.phases[d].items.push({id:nid(), d:'Fè Prensipal '+g.diam+' ('+g.nb+' bar/poto) — Poto', u:'bar', q:g.barNeeded, pm:0, pmo:0});
+  });
+  S.current.phases[d].items.push({id:nid(), d:'Fè Etriye '+calcState.potoEtriyeDyamet+' — Poto', u:'bar', q:etriyeBarNeeded, pm:0, pmo:0});
   S.current.phases[d].items.push({id:nid(), d:'Fil Ligati — Poto', u:'m', q:Math.ceil(ligatiTotal), pm:0, pmo:0});
   S.showCalc=false; render(); scheduleSave();
 }
