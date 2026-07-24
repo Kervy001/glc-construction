@@ -323,7 +323,12 @@ var DIAM_MM = {
 function hookAutoCm(diamKey){
   // Crochet estanda (90°) ≈ 12 × dyamèt bar la (règ jeneral egzekisyon)
   var mm = DIAM_MM[diamKey] || DIAM_MM['1/2" (#4)'];
-  return Math.round(12*mm/10*10)/10;
+  return Math.round(12*mm)/10;
+}
+function lapAutoCm(diamKey){
+  // Longè rekouvreman (jwenti) ≈ 40 × dyamèt bar la (règ jeneral pou trakson)
+  var mm = DIAM_MM[diamKey] || DIAM_MM['1/2" (#4)'];
+  return Math.round(40*mm)/10;
 }
 var CONCRETE_TYPES = [
   {key:'proprete', label:'Beton Pwòpte (150 kg/m³)', ciment:150, sab:0.60, gravye:0.80, dloL:90},
@@ -991,6 +996,23 @@ function updateSavingIndicator(){
 // ---------------- render root ----------------
 function render(){
   var app = document.getElementById('app');
+  var active = document.activeElement;
+  var focusName = null, selStart = null, selEnd = null;
+  if(active && app && app.contains(active) && active.name && (active.tagName==='INPUT'||active.tagName==='TEXTAREA')){
+    focusName = active.name;
+    try{ selStart = active.selectionStart; selEnd = active.selectionEnd; }catch(e){}
+  }
+  renderInner(app);
+  if(focusName){
+    var els = app.querySelectorAll('[name="'+focusName.replace(/"/g,'\\"')+'"]');
+    var el = els && els[0];
+    if(el){
+      el.focus();
+      if(selStart!=null && el.setSelectionRange){ try{ el.setSelectionRange(selStart, selEnd); }catch(e){} }
+    }
+  }
+}
+function renderInner(app){
   if(S._skipPanelAutoClose){ S._skipPanelAutoClose = false; }
   else { S.clientInfoOpen = false; S.progressOpen = false; }
   if(!S.authChecked || !S.user){ app.innerHTML = renderAuthGate(); updatePrintSheet(); return; }
@@ -3039,6 +3061,7 @@ var calcState = { longe:'', wote:'', ouveti:'', blokM2:12.5, pet:5,
   semelForme:'isolee', semelNappes:1,
   semelDiamX:'1/2" (#4)', semelDiamY:'1/2" (#4)', semelEspX:20, semelEspY:20,
   semelKrochetMode:'auto', semelKrochetX:15, semelKrochetY:15,
+  semelRecouvrementMode:'auto', semelRecouvrementX:50, semelRecouvrementY:50,
   semelBarLongeM:6, semelBarLongeCustom:'', semelLongBarKantite:4,
   volL:'', volW:'', volH:'',
   tolLonge:'', tolLaje:'', tolLajeItil:0.80, tolLongePye:10, tolPet:10, destTol:5,
@@ -3056,7 +3079,6 @@ var calcState = { longe:'', wote:'', ouveti:'', blokM2:12.5, pet:5,
 
 function computeSemel(){
   var M_TO_FT = 3.28084;
-  var LB_PER_KG = 0.453592;
   var sLonge = Number(calcState.semelLonge)||0, sLaje = Number(calcState.semelLaje)||0;
   var sEpes = Number(calcState.semelEpes)||0, sKantite = Number(calcState.semelKantite)||1;
   var vol = sLonge*sLaje*sEpes*sKantite;
@@ -3068,13 +3090,17 @@ function computeSemel(){
   var sab = vol*ct.sab*pet, gravye = vol*ct.gravye*pet, dlo = vol*ct.dloL*pet;
 
   var forme = calcState.semelForme || 'isolee';
-  var nappes = Number(calcState.semelNappes)||1;
+  var nappes = forme==='filante' ? 1 : (Number(calcState.semelNappes)||1); // filant se toujou senp nap — doub nap ta vin yon poutre
   var kouv = (Number(calcState.semelKouvèti)||5)/100;
   var espX = Number(calcState.semelEspX)||20, espY = Number(calcState.semelEspY)||20;
 
   var hookX_cm = calcState.semelKrochetMode==='manuel' ? (Number(calcState.semelKrochetX)||0) : hookAutoCm(calcState.semelDiamX);
   var hookY_cm = calcState.semelKrochetMode==='manuel' ? (Number(calcState.semelKrochetY)||0) : hookAutoCm(calcState.semelDiamY);
   var hookXm = hookX_cm/100, hookYm = hookY_cm/100;
+
+  var lapX_cm = calcState.semelRecouvrementMode==='manuel' ? (Number(calcState.semelRecouvrementX)||0) : lapAutoCm(calcState.semelDiamX);
+  var lapY_cm = calcState.semelRecouvrementMode==='manuel' ? (Number(calcState.semelRecouvrementY)||0) : lapAutoCm(calcState.semelDiamY);
+  var lapXm = lapX_cm/100, lapYm = lapY_cm/100;
 
   var barLongeM = calcState.semelBarLongeM==='custom' ? (Number(calcState.semelBarLongeCustom)||6) : (Number(calcState.semelBarLongeM)||6);
 
@@ -3084,7 +3110,7 @@ function computeSemel(){
     // Direksyon X = bar transvèsal (kout, travèse lajè a), espase sou tout longè a
     nX = Math.max(1, Math.ceil(((sLonge*100)-2*(kouv*100))/espX)+1);
     devLongX = Math.max(0, sLaje - 2*kouv) + 2*hookXm;
-    // Direksyon Y = bar longitidinal (kouri sou tout longè a), kantite fiks, san crochet (kontinyèl, jwenti sou longè komèsyal)
+    // Direksyon Y = bar longitidinal (kouri sou tout longè a), kantite fiks, san crochet (kontinyèl, jwenti sou longè komèsyal ak rekouvreman)
     longBarKantite = Math.max(1, Number(calcState.semelLongBarKantite)||4);
     nY = longBarKantite;
     devLongY = sLonge;
@@ -3096,6 +3122,12 @@ function computeSemel(){
     devLongY = Math.max(0, sLaje - 2*kouv) + 2*hookYm;
   }
 
+  // Si yon bar depase longè komèsyal la, li bezwen jwenti — ajoute rekouvreman pou chak jwenti
+  var spliceX = devLongX>barLongeM && barLongeM>0 ? Math.ceil(devLongX/barLongeM)-1 : 0;
+  var spliceY = devLongY>barLongeM && barLongeM>0 ? Math.ceil(devLongY/barLongeM)-1 : 0;
+  devLongX = devLongX + spliceX*lapXm;
+  devLongY = devLongY + spliceY*lapYm;
+
   var totalLongX = nX*devLongX*sKantite*nappes;
   var totalLongY = nY*devLongY*sKantite*nappes;
   var pyeX = totalLongX*M_TO_FT, pyeY = totalLongY*M_TO_FT;
@@ -3104,9 +3136,9 @@ function computeSemel(){
   var barsNeededY = pyeY>0 ? Math.ceil(pyeY/barLongePye) : 0;
   var wLbX = REBAR[calcState.semelDiamX] || REBAR['1/2" (#4)'];
   var wLbY = REBAR[calcState.semelDiamY] || REBAR['1/2" (#4)'];
-  var weightKgX = pyeX*wLbX*LB_PER_KG;
-  var weightKgY = pyeY*wLbY*LB_PER_KG;
-  var weightKgTotal = weightKgX+weightKgY;
+  var weightLbX = pyeX*wLbX;
+  var weightLbY = pyeY*wLbY;
+  var weightLbTotal = weightLbX+weightLbY;
 
   var ligatiKwazman = Math.ceil(nX*nY*sKantite*nappes);
   var ligatiTotal = ligatiKwazman*(Number(calcState.semelLigatiLonge)||0.30);
@@ -3114,11 +3146,12 @@ function computeSemel(){
   return {
     sLonge:sLonge, sLaje:sLaje, sEpes:sEpes, sKantite:sKantite,
     vol:vol, cimentKg:cimentKg, cimentSak:cimentSak, sab:sab, gravye:gravye, dlo:dlo,
-    forme:forme, nappes:nappes, hookX_cm:hookX_cm, hookY_cm:hookY_cm, barLongeM:barLongeM,
+    forme:forme, nappes:nappes, hookX_cm:hookX_cm, hookY_cm:hookY_cm,
+    lapX_cm:lapX_cm, lapY_cm:lapY_cm, spliceX:spliceX, spliceY:spliceY, barLongeM:barLongeM,
     nX:nX, nY:nY, devLongX:devLongX, devLongY:devLongY,
     totalLongX:totalLongX, totalLongY:totalLongY,
     barsNeededX:barsNeededX, barsNeededY:barsNeededY,
-    weightKgX:weightKgX, weightKgY:weightKgY, weightKgTotal:weightKgTotal,
+    weightLbX:weightLbX, weightLbY:weightLbY, weightLbTotal:weightLbTotal,
     ligatiKwazman:ligatiKwazman, ligatiTotal:ligatiTotal
   };
 }
@@ -3426,14 +3459,16 @@ function calcModal(p){
       + resultBox([['Volim beton', fmt(sc.vol)+' m³'],['Ciman', fmt(sc.cimentKg)+' kg'],['Sab', fmt(sc.sab)+' m³'],['Gravye', fmt(sc.gravye)+' m³'],['Dlo', fmt(sc.dlo)+' L']], 'Sak Siman', fmt(sc.cimentSak))
 
       + '<p style="font-size:11px;font-weight:600;text-transform:uppercase;color:var(--muted);margin:14px 0 6px;">Tip Semèl</p>'
-      + '<div style="display:flex;gap:6px;flex-wrap:wrap;">'
-        + '<button class="chip'+(sc.forme==='isolee'?' active':'')+'" onclick="calcUpd(\'semelForme\',\'isolee\')">Semèl Izole</button>'
-        + '<button class="chip'+(sc.forme==='filante'?' active':'')+'" onclick="calcUpd(\'semelForme\',\'filante\')">Semèl Filant</button>'
-      + '</div>'
       + '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:6px;">'
-        + '<button class="chip'+(sc.nappes===1?' active':'')+'" onclick="calcUpd(\'semelNappes\',1)">Senp Nap</button>'
-        + '<button class="chip'+(sc.nappes===2?' active':'')+'" onclick="calcUpd(\'semelNappes\',2)">Doub Nap</button>'
+        + '<button class="chip'+(sc.forme==='isolee'?' active':'')+'" onclick="calcUpd(\'semelForme\',\'isolee\')">Semèl Izole</button>'
+        + '<button class="chip'+(sc.forme==='filante'?' active':'')+'" onclick="calcUpd(\'semelForme\',\'filante\');calcState.semelNappes=1;">Semèl Filant</button>'
       + '</div>'
+      + (isFilante
+          ? '<p class="mono" style="font-size:9px;color:var(--muted);margin-top:6px;">Semèl filant toujou senp nap. Si w bezwen fè anwo ak anba (2 nap) sou yon eleman filant, sa vin yon poutre de fondasyon — sèvi ak onglè <b>Poutre</b> pito.</p>'
+          : '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:6px;">'
+            + '<button class="chip'+(sc.nappes===1?' active':'')+'" onclick="calcUpd(\'semelNappes\',1)">Senp Nap</button>'
+            + '<button class="chip'+(sc.nappes===2?' active':'')+'" onclick="calcUpd(\'semelNappes\',2)">Doub Nap</button>'
+          + '</div>')
 
       + '<p style="font-size:11px;font-weight:600;text-transform:uppercase;color:var(--muted);margin:14px 0 6px;">'+(isFilante?'Bar Transvèsal (direksyon X)':'Fè Direksyon X')+'</p>'
       + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">'
@@ -3465,6 +3500,19 @@ function calcModal(p){
             + '</div>'
           : '<p class="mono" style="font-size:11px;color:var(--muted);margin-top:6px;">X: '+fmt(sc.hookX_cm)+' cm'+(isFilante?'':' · Y: '+fmt(sc.hookY_cm)+' cm')+'</p>')
 
+      + '<p style="font-size:11px;font-weight:600;text-transform:uppercase;color:var(--muted);margin:14px 0 6px;">Rekouvreman (Jwenti)</p>'
+      + '<div style="display:flex;gap:6px;flex-wrap:wrap;">'
+        + '<button class="chip'+(calcState.semelRecouvrementMode!=='manuel'?' active':'')+'" onclick="calcUpd(\'semelRecouvrementMode\',\'auto\')">Otomatik (40×Ø)</button>'
+        + '<button class="chip'+(calcState.semelRecouvrementMode==='manuel'?' active':'')+'" onclick="calcUpd(\'semelRecouvrementMode\',\'manuel\')">Manyèl</button>'
+      + '</div>'
+      + (calcState.semelRecouvrementMode==='manuel'
+          ? '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px;">'
+            + fieldHtml('Rekouvreman X (cm)','<input type="text" inputmode="decimal" value="'+calcState.semelRecouvrementX+'" name="cf_semelRecouvrementX" oninput="calcUpd(\'semelRecouvrementX\',this.value)" style="background:var(--white);border:1px solid var(--line);">')
+            + fieldHtml('Rekouvreman Y (cm)','<input type="text" inputmode="decimal" value="'+calcState.semelRecouvrementY+'" name="cf_semelRecouvrementY" oninput="calcUpd(\'semelRecouvrementY\',this.value)" style="background:var(--white);border:1px solid var(--line);">')
+            + '</div>'
+          : '<p class="mono" style="font-size:11px;color:var(--muted);margin-top:6px;">X: '+fmt(sc.lapX_cm)+' cm · Y: '+fmt(sc.lapY_cm)+' cm</p>')
+      + (sc.spliceX>0||sc.spliceY>0 ? '<p class="mono" style="font-size:9px;color:var(--muted);margin-top:4px;">Aplike sèlman lè longè bar la depase longè komèsyal la — Jwenti X: '+sc.spliceX+' · Jwenti Y: '+sc.spliceY+' (deja enkli nan longè développée anba a).</p>' : '')
+
       + '<p style="font-size:11px;font-weight:600;text-transform:uppercase;color:var(--muted);margin:14px 0 6px;">Longè Komèsyal Bar</p>'
       + '<div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;">'
         + [6,9,12].map(function(v){ return '<button class="chip'+(calcState.semelBarLongeM==v?' active':'')+'" onclick="calcUpd(\'semelBarLongeM\','+v+')">'+v+' m</button>'; }).join('')
@@ -3476,15 +3524,15 @@ function calcModal(p){
           ['Bar direksyon X', fmt(sc.nX)],
           ['Longè développée / bar (X)', fmt(sc.devLongX)+' m'],
           ['Longè total acier X', fmt(sc.totalLongX)+' m'],
-          ['Pwa acier X', fmt(sc.weightKgX)+' kg']
+          ['Pwa acier X', fmt(sc.weightLbX)+' lbs']
         ], 'Bar Komèsyal X Nesesè', fmt(sc.barsNeededX))
       + resultBox([
           ['Bar direksyon Y', fmt(sc.nY)],
           ['Longè développée / bar (Y)', fmt(sc.devLongY)+' m'],
           ['Longè total acier Y', fmt(sc.totalLongY)+' m'],
-          ['Pwa acier Y', fmt(sc.weightKgY)+' kg']
+          ['Pwa acier Y', fmt(sc.weightLbY)+' lbs']
         ], 'Bar Komèsyal Y Nesesè', fmt(sc.barsNeededY))
-      + resultBox([], 'Pwa Total Acier (X+Y)', fmt(sc.weightKgTotal)+' kg')
+      + resultBox([], 'Pwa Total Acier (X+Y)', fmt(sc.weightLbTotal)+' lbs')
 
       + '<p style="font-size:11px;font-weight:600;text-transform:uppercase;color:var(--muted);margin:14px 0 6px;">Fil Ligati</p>'
       + fieldHtml('Longè pou mare chak kwazman (m)','<input type="text" inputmode="decimal" step="0.05" value="'+calcState.semelLigatiLonge+'" name="cf_semelLigatiLonge" oninput="calcUpd(\'semelLigatiLonge\',this.value)" style="background:var(--white);border:1px solid var(--line);">')
@@ -3784,7 +3832,7 @@ function applySemel(){ if(blockIfReadOnly()) return;
   S.current.phases[d].items.push({id:nid(), d:'Dlo — '+formeLabel, u:'litè', q:Math.round(sc.dlo), pm:0, pmo:0});
   S.current.phases[d].items.push({id:nid(), d:dirXLabel+' '+calcState.semelDiamX+napLabel+' — '+formeLabel, u:'bar', q:sc.barsNeededX, pm:0, pmo:0});
   S.current.phases[d].items.push({id:nid(), d:dirYLabel+' '+calcState.semelDiamY+napLabel+' — '+formeLabel, u:'bar', q:sc.barsNeededY, pm:0, pmo:0});
-  S.current.phases[d].items.push({id:nid(), d:'Pwa Total Acier — '+formeLabel, u:'kg', q:Math.round(sc.weightKgTotal*100)/100, pm:0, pmo:0});
+  S.current.phases[d].items.push({id:nid(), d:'Pwa Total Acier — '+formeLabel, u:'lbs', q:Math.round(sc.weightLbTotal*100)/100, pm:0, pmo:0});
   S.current.phases[d].items.push({id:nid(), d:'Fil Ligati — '+formeLabel, u:'m', q:Math.ceil(sc.ligatiTotal), pm:0, pmo:0});
   S.showCalc=false; render(); scheduleSave();
 }
