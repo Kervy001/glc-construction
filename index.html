@@ -316,6 +316,15 @@ var REBAR = {
   '3/8" (#3)': 0.376, '1/2" (#4)': 0.668, '5/8" (#5)': 1.043,
   '3/4" (#6)': 1.502, '7/8" (#7)': 2.044, '1" (#8)': 2.670
 };
+var DIAM_MM = {
+  '3/8" (#3)': 9.5, '1/2" (#4)': 12.7, '5/8" (#5)': 15.9,
+  '3/4" (#6)': 19.1, '7/8" (#7)': 22.2, '1" (#8)': 25.4
+};
+function hookAutoCm(diamKey){
+  // Crochet estanda (90°) ≈ 12 × dyamèt bar la (règ jeneral egzekisyon)
+  var mm = DIAM_MM[diamKey] || DIAM_MM['1/2" (#4)'];
+  return Math.round(12*mm/10*10)/10;
+}
 var CONCRETE_TYPES = [
   {key:'proprete', label:'Beton Pwòpte (150 kg/m³)', ciment:150, sab:0.60, gravye:0.80, dloL:90},
   {key:'fondasyon', label:'Beton Fondasyon non-ame (250 kg/m³)', ciment:250, sab:0.50, gravye:0.80, dloL:135},
@@ -2640,7 +2649,7 @@ function renderEditor(){
       + '<button class="chip'+(tip==='lokasyon'?' active':'')+'" style="padding:3px 10px;font-size:10px;" onclick="updItem(\''+it.id+'\',\'tip\',\'lokasyon\');render();">Lokasyon</button>'
       + '<select onchange="updItem(\''+it.id+'\',\'priceMode\',this.value);render();" style="margin-left:auto;font-size:10px;font-family:Inter,sans-serif;background:rgba(22,35,44,.06);border:1px solid var(--line);border-radius:999px;padding:4px 8px;color:var(--ink);">'
         + '<option value="inite" '+(!isFiks?'selected':'')+'>Materyo × Kantite</option>'
-        + '<option value="fiks" '+(isFiks?'selected':'')+'>Pri Fiks</option>'
+        + '<option value="fiks" '+(isFiks?'selected':'')+'>Tout Fiks (san miltiplikasyon)</option>'
       + '</select>'
     + '</div>'
     + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px;">'
@@ -2648,8 +2657,8 @@ function renderEditor(){
     + fieldHtml(isFiks?'Kantite (enfo sèlman)':'Kantite','<input type="number" value="'+it.q+'" oninput="updItem(\''+it.id+'\',\'q\',this.value)">')
     + '</div>'
     + '<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-top:8px;">'
-    + fieldHtml(isFiks?'Pri M.(Fiks)':'Pri M.(× Kantite)','<input type="number" value="'+it.pm+'" oninput="updItem(\''+it.id+'\',\'pm\',this.value)">')
-    + fieldHtml('Pri Mendèv (Fiks)','<input type="number" value="'+it.pmo+'" oninput="updItem(\''+it.id+'\',\'pmo\',this.value)">')
+    + fieldHtml(isFiks?'Pri Materyo (Fiks)':'Pri Materyo (× Kantite)','<input type="number" value="'+it.pm+'" oninput="updItem(\''+it.id+'\',\'pm\',this.value)">')
+    + fieldHtml('Pri Men-d\'èv (Fiks, pa miltipliye)','<input type="number" value="'+it.pmo+'" oninput="updItem(\''+it.id+'\',\'pmo\',this.value)">')
     + '<div><label class="mono" style="display:block;font-size:9px;text-transform:uppercase;color:var(--muted);margin-bottom:3px;">Total</label><div id="total-'+it.id+'" class="mono" style="font-size:12px;font-weight:600;background:rgba(22,35,44,.05);border-radius:6px;padding:7px 8px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">'+fmt(itemTotal(it))+'</div></div>'
     + '</div></div>';
   }).join('');
@@ -3026,7 +3035,11 @@ var calcState = { longe:'', wote:'', ouveti:'', blokM2:12.5, pet:5,
   potoLaje:20, potoEpes:20, potoWote:2.8, potoKantite:1, potoBetonType:'arme350', potoBetonPet:5,
   potoBarKantite:4, potoRecouvriman:0.4, potoKouvèti:2.5, potoEtriyeEspasman:15, potoLigatiLonge:0.30, destPoto:3,
   semelLonge:1, semelLaje:1, semelEpes:0.3, semelKantite:1, semelBetonType:'arme350', semelBetonPet:5,
-  semelKouvèti:5, semelEspasman:20, semelLigatiLonge:0.30, destSemel:2,
+  semelKouvèti:5, semelLigatiLonge:0.30, destSemel:2,
+  semelForme:'isolee', semelNappes:1,
+  semelDiamX:'1/2" (#4)', semelDiamY:'1/2" (#4)', semelEspX:20, semelEspY:20,
+  semelKrochetMode:'auto', semelKrochetX:15, semelKrochetY:15,
+  semelBarLongeM:6, semelBarLongeCustom:'', semelLongBarKantite:4,
   volL:'', volW:'', volH:'',
   tolLonge:'', tolLaje:'', tolLajeItil:0.80, tolLongePye:10, tolPet:10, destTol:5,
   btuLonge:'', btuLaje:'', btuFakte:600, btuMoun:2, destBtu:6,
@@ -3041,6 +3054,74 @@ var calcState = { longe:'', wote:'', ouveti:'', blokM2:12.5, pet:5,
   chapEspasmanPoto:1.5, chapPlwaywoudPet:10, chapKlouGwose:'2 1/2"', chapKlouRannman:0.15, chapKlouRannmanFèy:0.35, destChap:5,
   destBlok:3, destFe:2, destBeton:2 };
 
+function computeSemel(){
+  var M_TO_FT = 3.28084;
+  var LB_PER_KG = 0.453592;
+  var sLonge = Number(calcState.semelLonge)||0, sLaje = Number(calcState.semelLaje)||0;
+  var sEpes = Number(calcState.semelEpes)||0, sKantite = Number(calcState.semelKantite)||1;
+  var vol = sLonge*sLaje*sEpes*sKantite;
+  var ct = findConcrete(calcState.semelBetonType);
+  var pet = 1+(Number(calcState.semelBetonPet)||0)/100;
+  var sakKg = Number(calcState.sakKg)||45;
+  var cimentKg = vol*ct.ciment*pet;
+  var cimentSak = Math.ceil(cimentKg/sakKg);
+  var sab = vol*ct.sab*pet, gravye = vol*ct.gravye*pet, dlo = vol*ct.dloL*pet;
+
+  var forme = calcState.semelForme || 'isolee';
+  var nappes = Number(calcState.semelNappes)||1;
+  var kouv = (Number(calcState.semelKouvèti)||5)/100;
+  var espX = Number(calcState.semelEspX)||20, espY = Number(calcState.semelEspY)||20;
+
+  var hookX_cm = calcState.semelKrochetMode==='manuel' ? (Number(calcState.semelKrochetX)||0) : hookAutoCm(calcState.semelDiamX);
+  var hookY_cm = calcState.semelKrochetMode==='manuel' ? (Number(calcState.semelKrochetY)||0) : hookAutoCm(calcState.semelDiamY);
+  var hookXm = hookX_cm/100, hookYm = hookY_cm/100;
+
+  var barLongeM = calcState.semelBarLongeM==='custom' ? (Number(calcState.semelBarLongeCustom)||6) : (Number(calcState.semelBarLongeM)||6);
+
+  var nX, nY, devLongX, devLongY, longBarKantite = 0;
+
+  if(forme==='filante'){
+    // Direksyon X = bar transvèsal (kout, travèse lajè a), espase sou tout longè a
+    nX = Math.max(1, Math.ceil(((sLonge*100)-2*(kouv*100))/espX)+1);
+    devLongX = Math.max(0, sLaje - 2*kouv) + 2*hookXm;
+    // Direksyon Y = bar longitidinal (kouri sou tout longè a), kantite fiks, san crochet (kontinyèl, jwenti sou longè komèsyal)
+    longBarKantite = Math.max(1, Number(calcState.semelLongBarKantite)||4);
+    nY = longBarKantite;
+    devLongY = sLonge;
+  } else {
+    // Isole: kadriyaj nan de direksyon, chak bar gen crochet nan de bout
+    nX = Math.max(1, Math.ceil(((sLaje*100)-2*(kouv*100))/espX)+1);
+    devLongX = Math.max(0, sLonge - 2*kouv) + 2*hookXm;
+    nY = Math.max(1, Math.ceil(((sLonge*100)-2*(kouv*100))/espY)+1);
+    devLongY = Math.max(0, sLaje - 2*kouv) + 2*hookYm;
+  }
+
+  var totalLongX = nX*devLongX*sKantite*nappes;
+  var totalLongY = nY*devLongY*sKantite*nappes;
+  var pyeX = totalLongX*M_TO_FT, pyeY = totalLongY*M_TO_FT;
+  var barLongePye = barLongeM*M_TO_FT;
+  var barsNeededX = pyeX>0 ? Math.ceil(pyeX/barLongePye) : 0;
+  var barsNeededY = pyeY>0 ? Math.ceil(pyeY/barLongePye) : 0;
+  var wLbX = REBAR[calcState.semelDiamX] || REBAR['1/2" (#4)'];
+  var wLbY = REBAR[calcState.semelDiamY] || REBAR['1/2" (#4)'];
+  var weightKgX = pyeX*wLbX*LB_PER_KG;
+  var weightKgY = pyeY*wLbY*LB_PER_KG;
+  var weightKgTotal = weightKgX+weightKgY;
+
+  var ligatiKwazman = Math.ceil(nX*nY*sKantite*nappes);
+  var ligatiTotal = ligatiKwazman*(Number(calcState.semelLigatiLonge)||0.30);
+
+  return {
+    sLonge:sLonge, sLaje:sLaje, sEpes:sEpes, sKantite:sKantite,
+    vol:vol, cimentKg:cimentKg, cimentSak:cimentSak, sab:sab, gravye:gravye, dlo:dlo,
+    forme:forme, nappes:nappes, hookX_cm:hookX_cm, hookY_cm:hookY_cm, barLongeM:barLongeM,
+    nX:nX, nY:nY, devLongX:devLongX, devLongY:devLongY,
+    totalLongX:totalLongX, totalLongY:totalLongY,
+    barsNeededX:barsNeededX, barsNeededY:barsNeededY,
+    weightKgX:weightKgX, weightKgY:weightKgY, weightKgTotal:weightKgTotal,
+    ligatiKwazman:ligatiKwazman, ligatiTotal:ligatiTotal
+  };
+}
 function calcModal(p){
   var opts = p.phases.map(function(ph,i){ return '<option value="'+i+'" '+(i===calcState.destBlok?'selected':'')+'>'+esc(ph.label)+'</option>'; }).join('');
   var optsFe = p.phases.map(function(ph,i){ return '<option value="'+i+'" '+(i===calcState.destFe?'selected':'')+'>'+esc(ph.label)+'</option>'; }).join('');
@@ -3093,26 +3174,7 @@ function calcModal(p){
   var potoLigatiTotal = potoLigatiKwazman*(Number(calcState.potoLigatiLonge)||0.30);
 
   // ---- SEMÈL (footing) ----
-  var sLonge = Number(calcState.semelLonge)||0, sLaje = Number(calcState.semelLaje)||0;
-  var sEpes = Number(calcState.semelEpes)||0, sKantite = Number(calcState.semelKantite)||1;
-  var semelVol = sLonge*sLaje*sEpes*sKantite;
-  var semelCt = findConcrete(calcState.semelBetonType);
-  var semelPet = 1+(Number(calcState.semelBetonPet)||0)/100;
-  var semelSakKg = Number(calcState.sakKg)||45;
-  var semelCimentKg = semelVol*semelCt.ciment*semelPet;
-  var semelCimentSak = Math.ceil(semelCimentKg/semelSakKg);
-  var semelSab = semelVol*semelCt.sab*semelPet;
-  var semelGravye = semelVol*semelCt.gravye*semelPet;
-  var semelDlo = semelVol*semelCt.dloL*semelPet;
-  var semelKouv = (Number(calcState.semelKouvèti)||5)/100;
-  var semelEsp = Number(calcState.semelEspasman)||20;
-  var semelN1 = Math.max(1, Math.ceil(((sLaje*100)-2*(semelKouv*100))/semelEsp)+1);
-  var semelN2 = Math.max(1, Math.ceil(((sLonge*100)-2*(semelKouv*100))/semelEsp)+1);
-  var semelLongèTotal = (semelN1*sLonge + semelN2*sLaje)*sKantite;
-  var semelPyeTotal = semelLongèTotal*M_TO_FT;
-  var semelBarNeeded = Math.ceil(semelPyeTotal/(Number(calcState.barLonge)||20));
-  var semelLigatiKwazman = semelN1*semelN2*sKantite;
-  var semelLigatiTotal = semelLigatiKwazman*(Number(calcState.semelLigatiLonge)||0.30);
+  var sc = computeSemel();
 
   var volV = Math.max(0,(Number(calcState.volL)||0)*(Number(calcState.volW)||0)*(Number(calcState.volH)||0));
 
@@ -3348,6 +3410,9 @@ function calcModal(p){
       + '<p class="mono" style="font-size:9px;color:var(--muted);margin-top:8px;">Kalkil aproksimatif — verifye ak plan estriktirèl ou pou dyamèt ak espasman final yo.</p>';
   } else if(calcTab==='semel'){
     var optsSemel = p.phases.map(function(ph,i){ return '<option value="'+i+'" '+(i===calcState.destSemel?'selected':'')+'>'+esc(ph.label)+'</option>'; }).join('');
+    var isFilante = sc.forme==='filante';
+    var diamOptsX = Object.keys(REBAR).map(function(k){ return '<option value="'+esc(k)+'" '+(k===calcState.semelDiamX?'selected':'')+'>'+esc(k)+'</option>'; }).join('');
+    var diamOptsY = Object.keys(REBAR).map(function(k){ return '<option value="'+esc(k)+'" '+(k===calcState.semelDiamY?'selected':'')+'>'+esc(k)+'</option>'; }).join('');
     body = '<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;">'
       + fieldHtml('Longè (m)','<input type="text" inputmode="decimal" value="'+calcState.semelLonge+'" name="cf_semelLonge" oninput="calcUpd(\'semelLonge\',this.value)" style="background:var(--white);border:1px solid var(--line);">')
       + fieldHtml('Lajè (m)','<input type="text" inputmode="decimal" value="'+calcState.semelLaje+'" name="cf_semelLaje" oninput="calcUpd(\'semelLaje\',this.value)" style="background:var(--white);border:1px solid var(--line);">')
@@ -3358,24 +3423,77 @@ function calcModal(p){
         + CONCRETE_TYPES.map(function(c){ return '<option value="'+c.key+'" '+(c.key===calcState.semelBetonType?'selected':'')+'>'+esc(c.label)+'</option>'; }).join('')
       + '</select></div>'
       + fieldHtml('Pèt Beton (%)','<input type="text" inputmode="decimal" value="'+calcState.semelBetonPet+'" name="cf_semelBetonPet" oninput="calcUpd(\'semelBetonPet\',this.value)" style="background:var(--white);border:1px solid var(--line);">')
-      + resultBox([['Volim beton', fmt(semelVol)+' m³'],['Ciman', fmt(semelCimentKg)+' kg'],['Sab', fmt(semelSab)+' m³'],['Gravye', fmt(semelGravye)+' m³'],['Dlo', fmt(semelDlo)+' L']], 'Sak Siman', fmt(semelCimentSak))
-      + '<p style="font-size:11px;font-weight:600;text-transform:uppercase;color:var(--muted);margin:14px 0 6px;">Fè Kadriyaj (baz)</p>'
-      + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">'
-      + '<div class="field"><label>Dyamèt</label><select name="cf_dyamet" onchange="calcUpd(\'dyamet\',this.value)" style="width:100%;font-size:13px;background:var(--white);border:1px solid var(--line);border-radius:6px;padding:7px 8px;">'
-        + Object.keys(REBAR).map(function(k){ return '<option value="'+esc(k)+'" '+(k===calcState.dyamet?'selected':'')+'>'+esc(k)+'</option>'; }).join('')
-      + '</select></div>'
-      + fieldHtml('Espasman (cm)','<input type="text" inputmode="decimal" value="'+calcState.semelEspasman+'" name="cf_semelEspasman" oninput="calcUpd(\'semelEspasman\',this.value)" style="background:var(--white);border:1px solid var(--line);">')
+      + resultBox([['Volim beton', fmt(sc.vol)+' m³'],['Ciman', fmt(sc.cimentKg)+' kg'],['Sab', fmt(sc.sab)+' m³'],['Gravye', fmt(sc.gravye)+' m³'],['Dlo', fmt(sc.dlo)+' L']], 'Sak Siman', fmt(sc.cimentSak))
+
+      + '<p style="font-size:11px;font-weight:600;text-transform:uppercase;color:var(--muted);margin:14px 0 6px;">Tip Semèl</p>'
+      + '<div style="display:flex;gap:6px;flex-wrap:wrap;">'
+        + '<button class="chip'+(sc.forme==='isolee'?' active':'')+'" onclick="calcUpd(\'semelForme\',\'isolee\')">Semèl Izole</button>'
+        + '<button class="chip'+(sc.forme==='filante'?' active':'')+'" onclick="calcUpd(\'semelForme\',\'filante\')">Semèl Filant</button>'
       + '</div>'
+      + '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:6px;">'
+        + '<button class="chip'+(sc.nappes===1?' active':'')+'" onclick="calcUpd(\'semelNappes\',1)">Senp Nap</button>'
+        + '<button class="chip'+(sc.nappes===2?' active':'')+'" onclick="calcUpd(\'semelNappes\',2)">Doub Nap</button>'
+      + '</div>'
+
+      + '<p style="font-size:11px;font-weight:600;text-transform:uppercase;color:var(--muted);margin:14px 0 6px;">'+(isFilante?'Bar Transvèsal (direksyon X)':'Fè Direksyon X')+'</p>'
+      + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">'
+      + '<div class="field"><label>Dyamèt X</label><select name="cf_semelDiamX" onchange="calcUpd(\'semelDiamX\',this.value)" style="width:100%;font-size:13px;background:var(--white);border:1px solid var(--line);border-radius:6px;padding:7px 8px;">'+diamOptsX+'</select></div>'
+      + fieldHtml('Espasman X (cm)','<input type="text" inputmode="decimal" value="'+calcState.semelEspX+'" name="cf_semelEspX" oninput="calcUpd(\'semelEspX\',this.value)" style="background:var(--white);border:1px solid var(--line);">')
+      + '</div>'
+
+      + '<p style="font-size:11px;font-weight:600;text-transform:uppercase;color:var(--muted);margin:14px 0 6px;">'+(isFilante?'Bar Longitidinal (direksyon Y)':'Fè Direksyon Y')+'</p>'
+      + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">'
+      + '<div class="field"><label>Dyamèt Y</label><select name="cf_semelDiamY" onchange="calcUpd(\'semelDiamY\',this.value)" style="width:100%;font-size:13px;background:var(--white);border:1px solid var(--line);border-radius:6px;padding:7px 8px;">'+diamOptsY+'</select></div>'
+      + (isFilante
+          ? fieldHtml('Kantite bar longitidinal','<input type="text" inputmode="decimal" value="'+calcState.semelLongBarKantite+'" name="cf_semelLongBarKantite" oninput="calcUpd(\'semelLongBarKantite\',this.value)" style="background:var(--white);border:1px solid var(--line);">')
+          : fieldHtml('Espasman Y (cm)','<input type="text" inputmode="decimal" value="'+calcState.semelEspY+'" name="cf_semelEspY" oninput="calcUpd(\'semelEspY\',this.value)" style="background:var(--white);border:1px solid var(--line);">')
+        )
+      + '</div>'
+      + (isFilante ? '<p class="mono" style="font-size:9px;color:var(--muted);margin-top:6px;">Bar longitidinal yo kontinyèl sou tout longè a — pa gen crochet, y ap jwenti ak longè komèsyal la.</p>' : '')
+
       + '<div style="margin-top:8px;">'+fieldHtml('Kouvèti beton (cm)','<input type="text" inputmode="decimal" step="0.5" value="'+calcState.semelKouvèti+'" name="cf_semelKouvèti" oninput="calcUpd(\'semelKouvèti\',this.value)" style="background:var(--white);border:1px solid var(--line);">')+'</div>'
-      + resultBox([['Bar direksyon 1', fmt(semelN1)],['Bar direksyon 2', fmt(semelN2)],['Total pye', fmt(semelPyeTotal)+' pye']], 'Bar Kadriyaj', fmt(semelBarNeeded))
+
+      + '<p style="font-size:11px;font-weight:600;text-transform:uppercase;color:var(--muted);margin:14px 0 6px;">Crochet (Ankraj)</p>'
+      + '<div style="display:flex;gap:6px;flex-wrap:wrap;">'
+        + '<button class="chip'+(calcState.semelKrochetMode!=='manuel'?' active':'')+'" onclick="calcUpd(\'semelKrochetMode\',\'auto\')">Otomatik (12×Ø)</button>'
+        + '<button class="chip'+(calcState.semelKrochetMode==='manuel'?' active':'')+'" onclick="calcUpd(\'semelKrochetMode\',\'manuel\')">Manyèl</button>'
+      + '</div>'
+      + (calcState.semelKrochetMode==='manuel'
+          ? '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px;">'
+            + fieldHtml('Crochet X (cm)','<input type="text" inputmode="decimal" value="'+calcState.semelKrochetX+'" name="cf_semelKrochetX" oninput="calcUpd(\'semelKrochetX\',this.value)" style="background:var(--white);border:1px solid var(--line);">')
+            + (isFilante ? '' : fieldHtml('Crochet Y (cm)','<input type="text" inputmode="decimal" value="'+calcState.semelKrochetY+'" name="cf_semelKrochetY" oninput="calcUpd(\'semelKrochetY\',this.value)" style="background:var(--white);border:1px solid var(--line);">'))
+            + '</div>'
+          : '<p class="mono" style="font-size:11px;color:var(--muted);margin-top:6px;">X: '+fmt(sc.hookX_cm)+' cm'+(isFilante?'':' · Y: '+fmt(sc.hookY_cm)+' cm')+'</p>')
+
+      + '<p style="font-size:11px;font-weight:600;text-transform:uppercase;color:var(--muted);margin:14px 0 6px;">Longè Komèsyal Bar</p>'
+      + '<div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;">'
+        + [6,9,12].map(function(v){ return '<button class="chip'+(calcState.semelBarLongeM==v?' active':'')+'" onclick="calcUpd(\'semelBarLongeM\','+v+')">'+v+' m</button>'; }).join('')
+        + '<button class="chip'+(calcState.semelBarLongeM==='custom'?' active':'')+'" onclick="calcUpd(\'semelBarLongeM\',\'custom\')">Pèsonalize</button>'
+        + (calcState.semelBarLongeM==='custom' ? '<input type="text" inputmode="decimal" value="'+calcState.semelBarLongeCustom+'" name="cf_semelBarLongeCustom" oninput="calcUpd(\'semelBarLongeCustom\',this.value)" style="width:70px;font-size:13px;background:var(--white);border:1px solid var(--line);border-radius:6px;padding:7px 8px;" placeholder="m">' : '')
+      + '</div>'
+
+      + resultBox([
+          ['Bar direksyon X', fmt(sc.nX)],
+          ['Longè développée / bar (X)', fmt(sc.devLongX)+' m'],
+          ['Longè total acier X', fmt(sc.totalLongX)+' m'],
+          ['Pwa acier X', fmt(sc.weightKgX)+' kg']
+        ], 'Bar Komèsyal X Nesesè', fmt(sc.barsNeededX))
+      + resultBox([
+          ['Bar direksyon Y', fmt(sc.nY)],
+          ['Longè développée / bar (Y)', fmt(sc.devLongY)+' m'],
+          ['Longè total acier Y', fmt(sc.totalLongY)+' m'],
+          ['Pwa acier Y', fmt(sc.weightKgY)+' kg']
+        ], 'Bar Komèsyal Y Nesesè', fmt(sc.barsNeededY))
+      + resultBox([], 'Pwa Total Acier (X+Y)', fmt(sc.weightKgTotal)+' kg')
+
       + '<p style="font-size:11px;font-weight:600;text-transform:uppercase;color:var(--muted);margin:14px 0 6px;">Fil Ligati</p>'
       + fieldHtml('Longè pou mare chak kwazman (m)','<input type="text" inputmode="decimal" step="0.05" value="'+calcState.semelLigatiLonge+'" name="cf_semelLigatiLonge" oninput="calcUpd(\'semelLigatiLonge\',this.value)" style="background:var(--white);border:1px solid var(--line);">')
-      + resultBox([['Kwazman (dir. 1 × dir. 2)', fmt(semelLigatiKwazman)]], 'Fil Ligati', fmt(semelLigatiTotal)+' m')
+      + resultBox([['Kwazman (dir. X × dir. Y)', fmt(sc.ligatiKwazman)]], 'Fil Ligati', fmt(sc.ligatiTotal)+' m')
       + '<div style="display:flex;gap:8px;align-items:center;margin-top:12px;">'
       + '<select onchange="calcState.destSemel=Number(this.value)" style="flex:1;font-size:13px;background:var(--white);border:1px solid var(--line);border-radius:8px;padding:8px;">'+optsSemel+'</select>'
       + '<button class="btn btn-accent disp" onclick="applySemel()">Ajoute Tout</button>'
       + '</div>'
-      + '<p class="mono" style="font-size:9px;color:var(--muted);margin-top:8px;">Kadriyaj baz sèlman (yon kouch). Doub li si plan an mande ferayaj anwo tou.</p>';
+      + '<p class="mono" style="font-size:9px;color:var(--muted);margin-top:8px;">Kalkil pran an kont crochet, tip semèl, ak nap doub si chwazi — verifye ak plan estriktirèl ou pou konfimasyon final.</p>';
   } else if(calcTab==='vol'){
     body = '<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;">'
       + fieldHtml('Longè (m)','<input type="text" inputmode="decimal" value="'+calcState.volL+'" name="cf_volL" oninput="calcUpd(\'volL\',this.value)" style="background:var(--white);border:1px solid var(--line);">')
@@ -3654,32 +3772,20 @@ function applyPoto(){ if(blockIfReadOnly()) return;
 }
 function applySemel(){ if(blockIfReadOnly()) return;
   var d=calcState.destSemel; S.active=d;
-  var M_TO_FT = 3.28084;
-  var sLonge = Number(calcState.semelLonge)||0, sLaje = Number(calcState.semelLaje)||0;
-  var sEpes = Number(calcState.semelEpes)||0, sKantite = Number(calcState.semelKantite)||1;
-  var vol = sLonge*sLaje*sEpes*sKantite;
-  var ct = findConcrete(calcState.semelBetonType);
-  var pet = 1+(Number(calcState.semelBetonPet)||0)/100;
-  var sakKg = Number(calcState.sakKg)||45;
-  var cimentKg = vol*ct.ciment*pet;
-  var cimentSak = Math.ceil(cimentKg/sakKg);
-  var sab = vol*ct.sab*pet, gravye = vol*ct.gravye*pet, dlo = vol*ct.dloL*pet;
-  var kouv = (Number(calcState.semelKouvèti)||5)/100;
-  var esp = Number(calcState.semelEspasman)||20;
-  var n1 = Math.max(1, Math.ceil(((sLaje*100)-2*(kouv*100))/esp)+1);
-  var n2 = Math.max(1, Math.ceil(((sLonge*100)-2*(kouv*100))/esp)+1);
-  var longèTotal = (n1*sLonge + n2*sLaje)*sKantite;
-  var pyeTotal = longèTotal*M_TO_FT;
-  var barNeeded = Math.ceil(pyeTotal/(Number(calcState.barLonge)||20));
-  var ligatiKwazman = n1*n2*sKantite;
-  var ligatiTotal = ligatiKwazman*(Number(calcState.semelLigatiLonge)||0.30);
+  var sc = computeSemel();
+  var formeLabel = sc.forme==='filante' ? 'Semèl Filant' : 'Semèl Izole';
+  var napLabel = sc.nappes===2 ? ' (Doub Nap)' : '';
+  var dirYLabel = sc.forme==='filante' ? 'Fè Longitidinal' : 'Fè Direksyon Y';
+  var dirXLabel = sc.forme==='filante' ? 'Fè Transvèsal' : 'Fè Direksyon X';
 
-  S.current.phases[d].items.push({id:nid(), d:'Siman ('+sakKg+'kg/sak) — Semèl', u:'sak', q:cimentSak, pm:0, pmo:0});
-  S.current.phases[d].items.push({id:nid(), d:'Sab — Semèl', u:'m³', q:Math.round(sab*100)/100, pm:0, pmo:0});
-  S.current.phases[d].items.push({id:nid(), d:'Gravye — Semèl', u:'m³', q:Math.round(gravye*100)/100, pm:0, pmo:0});
-  S.current.phases[d].items.push({id:nid(), d:'Dlo — Semèl', u:'litè', q:Math.round(dlo), pm:0, pmo:0});
-  S.current.phases[d].items.push({id:nid(), d:'Fè Kadriyaj '+calcState.dyamet+' — Semèl', u:'bar', q:barNeeded, pm:0, pmo:0});
-  S.current.phases[d].items.push({id:nid(), d:'Fil Ligati — Semèl', u:'m', q:Math.ceil(ligatiTotal), pm:0, pmo:0});
+  S.current.phases[d].items.push({id:nid(), d:'Siman ('+(Number(calcState.sakKg)||45)+'kg/sak) — '+formeLabel, u:'sak', q:sc.cimentSak, pm:0, pmo:0});
+  S.current.phases[d].items.push({id:nid(), d:'Sab — '+formeLabel, u:'m³', q:Math.round(sc.sab*100)/100, pm:0, pmo:0});
+  S.current.phases[d].items.push({id:nid(), d:'Gravye — '+formeLabel, u:'m³', q:Math.round(sc.gravye*100)/100, pm:0, pmo:0});
+  S.current.phases[d].items.push({id:nid(), d:'Dlo — '+formeLabel, u:'litè', q:Math.round(sc.dlo), pm:0, pmo:0});
+  S.current.phases[d].items.push({id:nid(), d:dirXLabel+' '+calcState.semelDiamX+napLabel+' — '+formeLabel, u:'bar', q:sc.barsNeededX, pm:0, pmo:0});
+  S.current.phases[d].items.push({id:nid(), d:dirYLabel+' '+calcState.semelDiamY+napLabel+' — '+formeLabel, u:'bar', q:sc.barsNeededY, pm:0, pmo:0});
+  S.current.phases[d].items.push({id:nid(), d:'Pwa Total Acier — '+formeLabel, u:'kg', q:Math.round(sc.weightKgTotal*100)/100, pm:0, pmo:0});
+  S.current.phases[d].items.push({id:nid(), d:'Fil Ligati — '+formeLabel, u:'m', q:Math.ceil(sc.ligatiTotal), pm:0, pmo:0});
   S.showCalc=false; render(); scheduleSave();
 }
 function applyBetonTotal(){ if(blockIfReadOnly()) return;
