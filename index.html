@@ -188,6 +188,7 @@ textarea{width:100%;font-size:13px;background:var(--paper);border-radius:6px;pad
     saveConfig: function(key, dataObj){ return setDoc(doc(db, 'config', key), dataObj); },
     // ---- Vant (tranzaksyon plan vandi) ----
     saveSale: function(saleId, dataObj){ return setDoc(doc(db, 'sales', saleId), dataObj); },
+    deleteSale: function(saleId){ return deleteDoc(doc(db, 'sales', saleId)); },
     // role: 'principal' -> tout dosye; 'admin' -> pwòp vant li + vant ajan anba li; 'agent' -> sèl pwòp vant li
     // (Règ Firestore yo depann sou resource.data pou Admin/Ajan, kidonk yon lekti san filt ap rejte pou yo)
     listSales: function(role, uid){
@@ -933,6 +934,7 @@ function isSubExpired(){
   return new Date() > exp;
 }
 function isReadOnlyMode(){ return isSubExpired(); }
+function isBlacklisted(){ return !!(S.subscription && S.subscription.blacklisted); }
 function blockIfReadOnly(){
   if(isReadOnlyMode()){
     alertMsg('Abònman ou ekspire — ou ka gade enfo ak devis ou yo, men ou pa ka ajoute oswa modifye anyen jiskaske ou renouvle. Kontakte administratè a.');
@@ -1038,6 +1040,7 @@ function renderInner(app){
   if(!S.authChecked || !S.user){ app.innerHTML = renderAuthGate(); updatePrintSheet(); return; }
   if(S.user.emailVerified===false && isNewAccount(S.user)){ app.innerHTML = renderVerifyEmailGate(); updatePrintSheet(); return; }
   if(!S.subChecked && !isStaffUser()){ app.innerHTML = renderSubCheckingScreen(); return; }
+  if(!isStaffUser() && isBlacklisted()){ app.innerHTML = renderBlacklistedGate(); updatePrintSheet(); return; }
   if(isAgentUser()){ app.innerHTML = renderAgentSpace(); return; }
   if(S.view==='admin'){ app.innerHTML = renderAdmin(); return; }
   if(S.view==='pricelib'){ app.innerHTML = renderPriceLibraryAdmin(); return; }
@@ -1058,6 +1061,14 @@ function renderSubCheckingScreen(){
   return '<div style="min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;padding:24px;">'
     + glcMark(40)
     + '<p class="mono" style="font-size:11px;color:var(--muted);">Ap verifye abònman ou...</p>'
+    + '</div>';
+}
+function renderBlacklistedGate(){
+  return '<div style="min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;padding:24px;text-align:center;">'
+    + '<div style="font-size:40px;">🚫</div>'
+    + '<h1 class="disp" style="font-size:17px;font-weight:700;text-transform:uppercase;margin:0;color:#C0392B;">Aksè Bloke</h1>'
+    + '<p style="font-size:13px;color:var(--muted);max-width:320px;margin:0;">Kont sa a bloke pa Administratè a. Ou pa ka itilize aplikasyon an ankò. Si w kwè sa se yon erè, kontakte administratè GLC Construction HT la.</p>'
+    + '<button class="btn btn-ghost disp" style="margin-top:8px;" onclick="handleSignOut()">Dekonekte</button>'
     + '</div>';
 }
 function toggleClientInfoPanel(){
@@ -1620,6 +1631,31 @@ async function toggleVip(uid){
     render();
   }catch(e){ alertMsg('Erè pandan operasyon an.'); }
 }
+function confirmToggleBlacklist(uid){
+  if(!isPrincipalAdmin()){ alertMsg('Sèl Admin Prensipal la ka mete oswa retire yon moun nan lis nwa.'); return; }
+  var u = (S.adminUsers||[]).find(function(x){return x.uid===uid;});
+  if(!u) return;
+  if(ADMIN_EMAILS.indexOf(u.email)>=0){ alertMsg('Ou pa ka mete yon Admin Prensipal nan lis nwa.'); return; }
+  if(u.blacklisted){ toggleBlacklist(uid); return; }
+  askConfirm('Mete '+(u.email||uid)+' nan lis nwa? Kont li ap bloke NÈT — li p ap ka itilize aplikasyon an ankò jiskaske w retire l.', function(){ toggleBlacklist(uid); }, {yesLabel:'Mete nan Lis Nwa'});
+}
+async function toggleBlacklist(uid){
+  if(!isPrincipalAdmin()){ alertMsg('Sèl Admin Prensipal la ka mete oswa retire yon moun nan lis nwa.'); return; }
+  if(!window.FB || !S.adminUsers) return;
+  var u = S.adminUsers.find(function(x){return x.uid===uid;});
+  if(!u) return;
+  if(ADMIN_EMAILS.indexOf(u.email)>=0){ alertMsg('Ou pa ka mete yon Admin Prensipal nan lis nwa.'); return; }
+  var next = !u.blacklisted;
+  var updated = Object.assign({}, u, { blacklisted: next });
+  delete updated.uid;
+  try{
+    await window.FB.saveSubscription(uid, updated);
+    var idx = S.adminUsers.findIndex(function(x){return x.uid===uid;});
+    if(idx>=0) S.adminUsers[idx] = Object.assign({uid:uid}, updated);
+    alertMsg(next ? 'Kont la mete nan lis nwa — aksè li bloke.' : 'Kont la retire nan lis nwa.');
+    render();
+  }catch(e){ alertMsg('Erè pandan operasyon an.'); }
+}
 function renderAdmin(){
   var all = S.adminUsers || [];
   var nEse = all.filter(function(u){return subStatusOf(u)==='esè';}).length;
@@ -1646,7 +1682,8 @@ function renderAdmin(){
         var isPrincipal = ADMIN_EMAILS.indexOf(u.email)>=0;
         var badges = (isPrincipal ? '<span class="mono" style="font-size:8px;font-weight:600;text-transform:uppercase;color:#fff;background:#16232C;border-radius:4px;padding:2px 6px;">👑 Prensipal</span>' : '')
           + (!isPrincipal && u.isAdmin ? '<span class="mono" style="font-size:8px;font-weight:600;text-transform:uppercase;color:#fff;background:#5B6B74;border-radius:4px;padding:2px 6px;">🛡️ Admin</span>' : '')
-          + (u.vip ? '<span class="mono" style="font-size:8px;font-weight:600;text-transform:uppercase;color:var(--ink);background:var(--accent);border-radius:4px;padding:2px 6px;">🎟️ VIP</span>' : '');
+          + (u.vip ? '<span class="mono" style="font-size:8px;font-weight:600;text-transform:uppercase;color:var(--ink);background:var(--accent);border-radius:4px;padding:2px 6px;">🎟️ VIP</span>' : '')
+          + (u.blacklisted ? '<span class="mono" style="font-size:8px;font-weight:600;text-transform:uppercase;color:#fff;background:#C0392B;border-radius:4px;padding:2px 6px;">🚫 Lis Nwa</span>' : '');
         return '<div class="card" style="margin-bottom:8px;">'
           + '<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;">'
             + '<div style="min-width:0;"><p style="font-size:13px;font-weight:600;margin:0;word-break:break-all;">'+esc(u.email||u.uid)+'</p>'
@@ -1667,6 +1704,7 @@ function renderAdmin(){
           + '<div style="display:flex;gap:6px;margin-top:6px;flex-wrap:wrap;border-top:1px solid var(--line);padding-top:8px;">'
             + '<button class="btn disp" style="font-size:10px;padding:6px 10px;background:'+(u.vip?'rgba(192,57,43,.1)':'rgba(255,178,0,.16)')+';color:var(--ink);" onclick="toggleVip(\''+u.uid+'\')">'+(u.vip?'🎟️ Retire VIP':'🎟️ Bay Tikè VIP')+'</button>'
             + (isPrincipalAdmin() && !isPrincipal ? '<button class="btn disp" style="font-size:10px;padding:6px 10px;background:'+(u.isAdmin?'rgba(192,57,43,.1)':'rgba(22,35,44,.06)')+';color:var(--ink);" onclick="toggleAdminRole(\''+u.uid+'\')">'+(u.isAdmin?'🛡️ Retire Admin':'🛡️ Fè Administratè')+'</button>' : '')
+            + (isPrincipalAdmin() && !isPrincipal ? '<button class="btn disp" style="font-size:10px;padding:6px 10px;background:'+(u.blacklisted?'rgba(22,35,44,.06)':'rgba(192,57,43,.1)')+';color:'+(u.blacklisted?'var(--ink)':'#C0392B')+';" onclick="confirmToggleBlacklist(\''+u.uid+'\')">'+(u.blacklisted?'🚫 Retire nan Lis Nwa':'🚫 Mete nan Lis Nwa')+'</button>' : '')
           + '</div>'
         + '</div>';
       }).join('');
@@ -1689,6 +1727,7 @@ function renderAdmin(){
       + filters.map(function(f){ return '<button class="chip'+(S.adminFilter===f[0]?' active':'')+'" onclick="S.adminFilter=\''+f[0]+'\';render();">'+f[1]+'</button>'; }).join('')
     + '</div>'
     + rows
+    + confirmModal()
     + '</div>';
 }
 
@@ -1896,6 +1935,22 @@ async function rejectSale(saleId){
     render();
   }catch(e){ alertMsg('Erè pandan operasyon an.'); }
 }
+function confirmDeleteSale(saleId){
+  if(!isPrincipalAdmin()){ alertMsg('Sèl Admin Prensipal la ka siprime yon vant/plan.'); return; }
+  var sale = (S.salesList||[]).find(function(s){return s.id===saleId;});
+  if(!sale) return;
+  askConfirm('Siprime vant/plan sa a ('+(sale.clientEmail||'')+') nèt nan istorik finansye a? Aksyon sa PA ka anile.', function(){ deleteSaleRecord(saleId); }, {yesLabel:'Siprime Vant'});
+}
+async function deleteSaleRecord(saleId){
+  if(!isPrincipalAdmin()){ alertMsg('Sèl Admin Prensipal la ka siprime yon vant/plan.'); return; }
+  if(!window.FB) return;
+  try{
+    await window.FB.deleteSale(saleId);
+    S.salesList = (S.salesList||[]).filter(function(s){ return s.id!==saleId; });
+    alertMsg('Vant lan siprime nan istorik finansye a.');
+    render();
+  }catch(e){ alertMsg('Erè pandan sipresyon an.'); }
+}
 
 // ---- Estatistik & filtraj peryòd ----
 function periodStart(period){
@@ -2078,6 +2133,9 @@ function renderBizSales(){
       + (withActions ? '<div style="display:flex;gap:6px;margin-top:8px;">'
           + '<button class="btn btn-accent disp" style="font-size:10px;padding:6px 10px;" onclick="approveSale(\''+s.id+'\')">Apwouve</button>'
           + '<button class="btn btn-ghost disp" style="font-size:10px;padding:6px 10px;color:#C0392B;" onclick="confirmRejectSale(\''+s.id+'\')">Anile</button>'
+        + '</div>' : '')
+      + (isPrincipalAdmin() ? '<div style="display:flex;gap:6px;margin-top:6px;">'
+          + '<button class="btn btn-ghost disp" style="font-size:10px;padding:6px 10px;color:#C0392B;" onclick="confirmDeleteSale(\''+s.id+'\')">🗑️ Siprime Vant</button>'
         + '</div>' : '')
     + '</div>';
   }
@@ -2934,10 +2992,17 @@ function addPhaseModal(){
     + '</div></div>';
 }
 function setActive(i){ if(i<0||i>=S.current.phases.length) return; S.active=i; render(); }
+var projRenderTimer = null;
 function updProj(field, value){
   if(isReadOnlyMode()) return;
   S.current[field]=value; scheduleSave();
-  if(field==='majorasyon'||field==='tauxUSD'||field==='statut'||field==='typeProjet'){ S._skipPanelAutoClose = true; render(); }
+  if(field==='majorasyon'||field==='tauxUSD'){
+    S._skipPanelAutoClose = true;
+    if(projRenderTimer) clearTimeout(projRenderTimer);
+    projRenderTimer = setTimeout(function(){ projRenderTimer=null; render(); }, 350);
+  } else if(field==='statut'||field==='typeProjet'){
+    S._skipPanelAutoClose = true; render();
+  }
   if(field==='statut' && value==='fini'){ addNotif('Pwojè fini: '+(S.current.projet||S.current.kliyan||'Pwojè san non')); }
 }
 function goBack(){ if(saveTimer) clearTimeout(saveTimer); persist(S.current).then(function(){ S.view='list'; S.company=null; render(); }); }
@@ -3153,7 +3218,7 @@ var calcState = { longe:'', wote:'', ouveti:'', blokM2:12.5, pet:5,
   krepiLonge:'', krepiWote:'', krepiOuveti:'', krepiEpes:1.5, krepiBetonType:'mortier_krepi', krepiPet:5, destKrepi:6,
   chapLonge:'', chapLaje:'', chapBwaTip:'2x4', chapEspasman:40, chapLongèBwa:12, chapPetBwa:10,
   chapEspasmanPoto:1.5, chapPlwaywoudPet:10, chapKlouGwose:'2 1/2"', chapKlouRannman:0.15, chapKlouRannmanFèy:0.35, destChap:5,
-  destBlok:3, destFe:2, destBeton:2 };
+  destBlok:3, destFe:2, destBeton:2, destVol:6 };
 
 function computePoto(){
   var M_TO_FT = 3.28084;
@@ -3861,6 +3926,7 @@ function calcModal(p){
       + '</div>'
       + '<p class="mono" style="font-size:9px;color:var(--muted);margin-top:8px;">Kalkil pran an kont crochet, tip semèl, ak nap doub si chwazi — verifye ak plan estriktirèl ou pou konfimasyon final.</p>';
   } else if(calcTab==='vol'){
+    var optsVol = p.phases.map(function(ph,i){ return '<option value="'+i+'" '+(i===calcState.destVol?'selected':'')+'>'+esc(ph.label)+'</option>'; }).join('');
     body = '<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;">'
       + fieldHtml('Longè (m)','<input type="text" inputmode="decimal" value="'+calcState.volL+'" name="cf_volL" oninput="calcUpd(\'volL\',this.value)" style="background:var(--white);border:1px solid var(--line);">')
       + fieldHtml('Lajè (m)','<input type="text" inputmode="decimal" value="'+calcState.volW+'" name="cf_volW" oninput="calcUpd(\'volW\',this.value)" style="background:var(--white);border:1px solid var(--line);">')
@@ -3868,7 +3934,8 @@ function calcModal(p){
       + '</div>'
       + resultBox([], 'Volim total', fmt(volV)+' m³')
       + '<p class="mono" style="font-size:9px;color:var(--muted);margin-top:8px;">Sèvi pou fòs septik, sitèn dlo, oswa nenpòt rezèvwa rektangilè. Multiplye pa 1000 pou jwenn kapasite an litè.</p>'
-      + resultBox([], 'Kapasite an litè', fmt(volV*1000)+' L');
+      + resultBox([], 'Kapasite an litè', fmt(volV*1000)+' L')
+      + destRow(optsVol, 'destVolSel', 'calcState.destVol=Number(this.value)', 'applyVol('+volV+')');
   } else if(calcTab==='tol'){
     body = '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">'
       + fieldHtml('Longè twati (m)','<input type="text" inputmode="decimal" value="'+calcState.tolLonge+'" name="cf_tolLonge" oninput="calcUpd(\'tolLonge\',this.value)" style="background:var(--white);border:1px solid var(--line);">')
@@ -4196,7 +4263,12 @@ function destRow(opts, selId, onchange, onclick){
     + '<button class="btn btn-accent disp" onclick="'+onclick+'">Ajoute</button>'
   + '</div>';
 }
-function calcUpd(field,val){ calcState[field]=val; render(); }
+var calcRenderTimer = null;
+function calcUpd(field,val){
+  calcState[field]=val;
+  if(calcRenderTimer) clearTimeout(calcRenderTimer);
+  calcRenderTimer = setTimeout(function(){ calcRenderTimer=null; render(); }, 350);
+}
 function setCalcTab(t){ calcTab=t; render(); }
 function applyBlok(qty){ if(blockIfReadOnly()) return;
   var d=calcState.destBlok; S.active=d;
@@ -4323,6 +4395,19 @@ function applyBetonTotal(){ if(blockIfReadOnly()) return;
     ['Dlo', fmt(t.dlo)+' L']
   ]);
   calcState.betonEntries = [];
+  S.showCalc=false; render(); scheduleSave();
+}
+function applyVol(volM3){ if(blockIfReadOnly()) return;
+  var d=calcState.destVol; S.active=d;
+  var label = 'Rezèvwa / Sitèn ('+fmt(calcState.volL)+'×'+fmt(calcState.volW)+'×'+fmt(calcState.volH)+' m) — kalkile';
+  S.current.phases[d].items.push({id:nid(), d:label, u:'m³', q:volM3, pm:0, pmo:0});
+  logCalcEntry('vol','Volim/Sitèn',d,[
+    ['Longè', fmt(calcState.volL)+' m'],
+    ['Lajè', fmt(calcState.volW)+' m'],
+    ['Wotè', fmt(calcState.volH)+' m'],
+    ['Volim total', fmt(volM3)+' m³'],
+    ['Kapasite', fmt(volM3*1000)+' L']
+  ]);
   S.showCalc=false; render(); scheduleSave();
 }
 function applyTol(qty){ if(blockIfReadOnly()) return;
