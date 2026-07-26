@@ -308,6 +308,19 @@ textarea{width:100%;font-size:13px;background:var(--paper);border-radius:6px;pad
 
 var UID = 1000;
 function nid(){ return 'i'+(UID++); }
+// ---- Nòt Kalkil (calc analysis log) ----
+function logCalcEntry(tabKey, tabLabel, phaseIdx, rows){
+  if(!S.current) return;
+  if(!S.current.calcLog) S.current.calcLog = [];
+  if(!S.current.calcCounters) S.current.calcCounters = {};
+  var n = (S.current.calcCounters[tabKey]||0)+1;
+  S.current.calcCounters[tabKey] = n;
+  var phaseLabel = (S.current.phases[phaseIdx] && S.current.phases[phaseIdx].label) || '';
+  S.current.calcLog.push({
+    id: nid(), ts: Date.now(), tab: tabKey, tabLabel: tabLabel, num: n,
+    label: tabLabel+' '+n, phase: phaseIdx, phaseLabel: phaseLabel, rows: rows
+  });
+}
 function fmt(n){ n = Number(n)||0; return n.toLocaleString('fr-HT',{maximumFractionDigits:2}); }
 function esc(s){ return (s==null?'':String(s)).replace(/[&<>"']/g, function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];}); }
 function escAttr(s){ return esc(s); }
@@ -2978,6 +2991,7 @@ function summaryModal(p, totals, sub, majAmt, finalHTG){
   + '<button class="btn" style="flex:1;justify-content:center;background:var(--white);border:1px solid var(--line);" onclick="tryPrint()">'+printIcon()+' Enprime</button>'
   + '<button class="btn btn-accent" style="flex:1;justify-content:center;" onclick="downloadDevisHTML()">'+downloadIcon()+' Telechaje PDF</button>'
   + '</div>'
+  + '<button class="btn btn-ghost disp" style="width:100%;justify-content:center;margin-top:8px;" onclick="downloadCalcNoteHTML()">'+downloadIcon()+' Telechaje Nòt Kalkil (Analiz)</button>'
   + '<button class="btn btn-ghost disp" style="width:100%;justify-content:center;margin-top:8px;" onclick="exportDevisWord()">'+downloadIcon()+' Telechaje Word (.doc)</button>'
   + '<button class="btn" style="width:100%;justify-content:center;background:#25D366;color:#fff;margin-top:8px;" onclick="shareWhatsapp()">'+waIcon()+' Pataje sou WhatsApp</button>'
   + '<p class="mono" style="font-size:9px;color:var(--muted);text-align:center;margin-top:8px;">Si "Enprime" pa reyaji, sèvi ak "Telechaje PDF" — li louvri nan yon nouvo paj kote ou ka enprime oswa sovgade kòm PDF.</p>'
@@ -3012,6 +3026,40 @@ function downloadDevisHTML(){
     setTimeout(function(){URL.revokeObjectURL(url);}, 10000);
     addNotif('PDF jenere pou devis '+((S.current&&S.current.devisNo)||''));
   }catch(e){ alertMsg('Erè pandan jenerasyon fichye a.'); }
+}
+function tryPrintCalcNote(){
+  try{
+    S.printMode = 'calcNote'; updatePrintSheet();
+    window.print();
+  }catch(e){ alertMsg('Enprimant otomatik la pa disponib isit. Sèvi ak bouton "Telechaje Nòt Kalkil" pi ba a.'); }
+  finally{ S.printMode = 'devis'; updatePrintSheet(); }
+}
+function downloadCalcNoteHTML(){
+  try{
+    S.printMode = 'calcNote'; updatePrintSheet();
+    var sheet = document.getElementById('printSheet');
+    if(!sheet || !sheet.innerHTML){ alertMsg('Pa gen anyen pou telechaje.'); S.printMode='devis'; updatePrintSheet(); return; }
+    var doc = '<!DOCTYPE html><html lang="fr"><head><meta charset="UTF-8">'
+      + '<meta name="viewport" content="width=device-width, initial-scale=1">'
+      + '<title>Nòt Kalkil — '+esc((S.current&&S.current.devisNo)||'')+' — '+esc((S.company&&S.company.non)||'GLC Construction HT')+'</title>'
+      + "<style>@import url('https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@700&family=Inter:wght@400;500;600&display=swap');body{font-family:Inter,sans-serif;margin:0;background:#fff;}@media print{.print-btn{display:none;}}</style>"
+      + '</head><body>'
+      + '<div style="max-width:750px;margin:12px auto;text-align:right;" class="print-btn"><button onclick="window.print()" style="font-family:Inter,sans-serif;font-weight:600;background:#16232C;color:#E4EAE6;border:none;border-radius:8px;padding:10px 18px;font-size:13px;cursor:pointer;">Enprime / Sovgade kòm PDF</button></div>'
+      + sheet.innerHTML
+      + '</body></html>';
+    var blob = new Blob([doc], {type:'text/html'});
+    var url = URL.createObjectURL(blob);
+    var win = window.open(url, '_blank');
+    if(!win){
+      var a = document.createElement('a');
+      a.href = url; a.download = 'nòt-kalkil-'+((S.current&&S.current.devisNo)||'pwoje')+'.html';
+      document.body.appendChild(a); a.click(); document.body.removeChild(a);
+      alertMsg('Fichye a telechaje. Louvri l epi peze "Enprime" pou fè PDF la.');
+    }
+    setTimeout(function(){URL.revokeObjectURL(url);}, 10000);
+    addNotif('Nòt Kalkil jenere pou pwojè '+((S.current&&S.current.devisNo)||''));
+  }catch(e){ alertMsg('Erè pandan jenerasyon fichye a.'); }
+  finally{ S.printMode = 'devis'; updatePrintSheet(); }
 }
 // Word-compatible export: wraps whichever print style is currently selected
 // in Word's own HTML namespaces and saves it with a .doc extension — Word,
@@ -4152,12 +4200,33 @@ function calcUpd(field,val){ calcState[field]=val; render(); }
 function setCalcTab(t){ calcTab=t; render(); }
 function applyBlok(qty){ if(blockIfReadOnly()) return;
   var d=calcState.destBlok; S.active=d;
+  var aireBlok = Math.max(0,(Number(calcState.longe)||0)*(Number(calcState.wote)||0)-(Number(calcState.ouveti)||0));
   S.current.phases[d].items.push({id:nid(),d:'Blòk beton (kalkile)',u:'pyès',q:qty,pm:75,pmo:20});
+  logCalcEntry('blok','Blòk',d,[
+    ['Longè mi total', fmt(calcState.longe)+' ml'],
+    ['Wotè mi', fmt(calcState.wote)+' m'],
+    ['Ouvèti (pòt/fenèt)', fmt(calcState.ouveti)+' m²'],
+    ['Blòk pa m²', fmt(calcState.blokM2)],
+    ['% Pèt', fmt(calcState.pet)+'%'],
+    ['Sifas mi', fmt(aireBlok)+' m²'],
+    ['Blòk pou achte', fmt(qty)]
+  ]);
   S.showCalc=false; render(); scheduleSave();
 }
 function applyFe(qty){ if(blockIfReadOnly()) return;
   var d=calcState.destFe; S.active=d;
+  var lbPerPyeFe = REBAR[calcState.dyamet]||0;
+  var pyeTotalFe = Number(calcState.pwaLbs)||0;
+  pyeTotalFe = lbPerPyeFe>0 ? pyeTotalFe/lbPerPyeFe : 0;
   S.current.phases[d].items.push({id:nid(), d:'Fè '+calcState.dyamet+' ('+qty+' bar)', u:'bar', q:qty, pm:0, pmo:0});
+  logCalcEntry('fe','Fè',d,[
+    ['Pwa total fè', fmt(calcState.pwaLbs)+' lbs'],
+    ['Dyamèt bar', calcState.dyamet],
+    ['Pwa pa pye', fmt(lbPerPyeFe)+' lbs/pye'],
+    ['Longè bar komèsyal', fmt(calcState.barLonge)+' pye'],
+    ['Total pye lineyè', fmt(pyeTotalFe)+' pye'],
+    ['Kantite bar', fmt(qty)]
+  ]);
   S.showCalc=false; render(); scheduleSave();
 }
 function addBetonEntry(){
@@ -4190,6 +4259,20 @@ function applyPoto(){ if(blockIfReadOnly()) return;
   });
   S.current.phases[d].items.push({id:nid(), d:'Fè Etriye '+calcState.potoEtriyeDyamet+' — Poto', u:'bar', q:pc.potoEtriyeBarNeeded, pm:0, pmo:0});
   S.current.phases[d].items.push({id:nid(), d:'Fil Ligati — Poto', u:'m', q:Math.ceil(pc.potoLigatiTotal), pm:0, pmo:0});
+  logCalcEntry('poto','Poto',d,[
+    ['Dimansyon (L×E)', fmt(calcState.potoLaje)+'×'+fmt(calcState.potoEpes)+' cm'],
+    ['Wotè', fmt(calcState.potoWote)+' m'],
+    ['Kantite poto', fmt(calcState.potoKantite)],
+    ['Volim beton', fmt(pc.potoVol)+' m³'],
+    ['Ciman', fmt(pc.potoCimentSak)+' sak'],
+    ['Fè prensipal', pc.potoGroups.map(function(g){ return g.nb+'× '+g.diam; }).join(' + ')],
+    ['Longè développée pa bar', fmt(pc.potoGroups[0].devLong)+' m'],
+    ['Crochet nan baz', pc.potoKrochetOn ? (fmt(pc.potoEtHookCm)+' cm') : 'Pa gen'],
+    ['Pwa Total Acier Prensipal', fmt(pc.potoWeightTotal-pc.potoEtriyeWeight)+' lbs'],
+    ['Etriye', calcState.potoEtriyeDyamet+' · esp. '+fmt(calcState.potoEtriyeEspasman)+' cm · '+fmt(pc.potoQtyEtriye)+' pyès'],
+    ['Longè komèsyal bar', fmt(pc.potoBarLongeM)+' m'],
+    ['Fil Ligati', fmt(pc.potoLigatiTotal)+' m']
+  ]);
   S.showCalc=false; render(); scheduleSave();
 }
 function applySemel(){ if(blockIfReadOnly()) return;
@@ -4208,15 +4291,37 @@ function applySemel(){ if(blockIfReadOnly()) return;
   S.current.phases[d].items.push({id:nid(), d:dirYLabel+' '+calcState.semelDiamY+napLabel+' — '+formeLabel, u:'bar', q:sc.barsNeededY, pm:0, pmo:0});
   S.current.phases[d].items.push({id:nid(), d:'Pwa Total Acier — '+formeLabel, u:'lbs', q:Math.round(sc.weightLbTotal*100)/100, pm:0, pmo:0});
   S.current.phases[d].items.push({id:nid(), d:'Fil Ligati — '+formeLabel, u:'m', q:Math.ceil(sc.ligatiTotal), pm:0, pmo:0});
+  logCalcEntry('semel',formeLabel,d,[
+    ['Fòm', formeLabel+napLabel],
+    ['Volim beton', fmt(sc.vol)+' m³'],
+    ['Ciman', fmt(sc.cimentSak)+' sak'],
+    [dirXLabel+' dyamèt', calcState.semelDiamX],
+    [dirYLabel+' dyamèt', calcState.semelDiamY],
+    ['Longè komèsyal bar', fmt(sc.barLongeM)+' m'],
+    ['Rekouvreman X / Y', fmt(sc.lapX_cm)+' cm / '+fmt(sc.lapY_cm)+' cm'],
+    ['Bar '+dirXLabel, fmt(sc.barsNeededX)],
+    ['Bar '+dirYLabel, fmt(sc.barsNeededY)],
+    ['Pwa Total Acier', fmt(sc.weightLbTotal)+' lbs'],
+    ['Fil Ligati', fmt(sc.ligatiTotal)+' m']
+  ]);
   S.showCalc=false; render(); scheduleSave();
 }
 function applyBetonTotal(){ if(blockIfReadOnly()) return;
   var d=calcState.destBeton; S.active=d;
-  var t = calcState.betonEntries.reduce(function(a,e){ a.sak+=e.cimentSak; a.sab+=e.sab; a.gravye+=e.gravye; a.dlo+=e.dlo; return a; }, {sak:0,sab:0,gravye:0,dlo:0});
+  var t = calcState.betonEntries.reduce(function(a,e){ a.sak+=e.cimentSak; a.sab+=e.sab; a.gravye+=e.gravye; a.dlo+=e.dlo; a.vol+=e.vol; return a; }, {sak:0,sab:0,gravye:0,dlo:0,vol:0});
   S.current.phases[d].items.push({id:nid(), d:'Siman ('+(Number(calcState.sakKg)||45)+'kg/sak)', u:'sak', q:t.sak, pm:0, pmo:0});
   S.current.phases[d].items.push({id:nid(), d:'Sab', u:'m³', q:Math.round(t.sab*100)/100, pm:0, pmo:0});
   S.current.phases[d].items.push({id:nid(), d:'Gravye', u:'m³', q:Math.round(t.gravye*100)/100, pm:0, pmo:0});
   S.current.phases[d].items.push({id:nid(), d:'Dlo', u:'litè', q:Math.round(t.dlo), pm:0, pmo:0});
+  logCalcEntry('beton','Beton',d,[
+    ['Kantite melanj sou lis la', fmt(calcState.betonEntries.length)],
+    ['Detay melanj', calcState.betonEntries.map(function(e){ return e.label+' ('+fmt(e.vol)+' m³)'; }).join(' · ') || '—'],
+    ['Volim total', fmt(t.vol)+' m³'],
+    ['Ciman', fmt(t.sak)+' sak'],
+    ['Sab', fmt(t.sab)+' m³'],
+    ['Gravye', fmt(t.gravye)+' m³'],
+    ['Dlo', fmt(t.dlo)+' L']
+  ]);
   calcState.betonEntries = [];
   S.showCalc=false; render(); scheduleSave();
 }
@@ -4224,17 +4329,40 @@ function applyTol(qty){ if(blockIfReadOnly()) return;
   var d=calcState.destTol; S.active=d;
   var label = 'Tòl ('+calcState.tolLongePye+' pye) — kalkile';
   S.current.phases[d].items.push({id:nid(), d:label, u:'fèy', q:qty, pm:600, pmo:150});
+  logCalcEntry('tol','Tòl',d,[
+    ['Longè twati', fmt(calcState.tolLonge)+' m'],
+    ['Lajè twati', fmt(calcState.tolLaje)+' m'],
+    ['Longè tòl komèsyal', fmt(calcState.tolLongePye)+' pye'],
+    ['Kantite fèy', fmt(qty)]
+  ]);
   S.showCalc=false; render(); scheduleSave();
 }
 function applyBtu(unit){ if(blockIfReadOnly()) return;
   var d=calcState.destBtu; S.active=d;
   S.current.phases[d].items.push({id:nid(), d:'Klimatizè '+fmt(unit)+' BTU', u:'inite', q:1, pm:0, pmo:0});
+  logCalcEntry('btu','Klimatizasyon',d,[
+    ['Dimansyon chanm', fmt(calcState.btuLonge)+' × '+fmt(calcState.btuLaje)+' m'],
+    ['Sifas chanm', fmt((Number(calcState.btuLonge)||0)*(Number(calcState.btuLaje)||0))+' m²'],
+    ['Faktè kondisyon', fmt(calcState.btuFakte)+' BTU/m²'],
+    ['Kantite moun', fmt(calcState.btuMoun)],
+    ['BTU rekòmande', fmt(unit)]
+  ]);
   S.showCalc=false; render(); scheduleSave();
 }
 function applyPenti(galonFinal, galonSous){ if(blockIfReadOnly()) return;
   var d=calcState.destPenti; S.active=d;
   if(galonSous>0){ S.current.phases[d].items.push({id:nid(), d:'Penti sou-kouche / aprèt (galon)', u:'galon', q:galonSous, pm:900, pmo:150}); }
   S.current.phases[d].items.push({id:nid(), d:'Penti final (galon)', u:'galon', q:galonFinal, pm:1400, pmo:150});
+  logCalcEntry('penti','Penti',d,[
+    ['Longè mi total', fmt(calcState.pentiLonge)+' ml'],
+    ['Wotè mi', fmt(calcState.pentiWote)+' m'],
+    ['Ouvèti (pòt/fenèt)', fmt(calcState.pentiOuveti)+' m²'],
+    ['Sifas pentire', fmt(Math.max(0,(Number(calcState.pentiLonge)||0)*(Number(calcState.pentiWote)||0)-(Number(calcState.pentiOuveti)||0)))+' m²'],
+    ['Kantite kouch', fmt(calcState.pentiKouch)],
+    ['Rannman', fmt(calcState.pentiRannman)+' m²/galon'],
+    ['Sou-kouche/aprèt', galonSous>0 ? (fmt(galonSous)+' galon') : 'Pa gen'],
+    ['Penti final', fmt(galonFinal)+' galon']
+  ]);
   S.showCalc=false; render(); scheduleSave();
 }
 function applyElektrik(){ if(blockIfReadOnly()) return;
@@ -4251,6 +4379,16 @@ function applyElektrik(){ if(blockIfReadOnly()) return;
   S.current.phases[d].items.push({id:nid(), d:'Bwat deriviyon', u:'pyès', q:totalPwen, pm:150, pmo:50});
   S.current.phases[d].items.push({id:nid(), d:'Disjonktè / Sikwi', u:'pyès', q:sikwi, pm:1200, pmo:150});
   S.current.phases[d].items.push({id:nid(), d:'Tablo Prensipal', u:'forfè', q:1, pm:8000, pmo:2500});
+  logCalcEntry('elek','Elektrik',d,[
+    ['Pwen Limyè', fmt(elekPwen)],
+    ['Priz Kouran', fmt(elekPriz)],
+    ['Total pwen', fmt(totalPwen)],
+    ['Longè mwayèn pa pwen', fmt(calcState.elekLongeMwayen)+' m'],
+    ['% Pèt', fmt(calcState.elekPet)+'%'],
+    ['Fil elektrik', fmt(longeFil)+' ml'],
+    ['Pwen pa sikwi', fmt(calcState.elekPwenPaSikwi)],
+    ['Disjonktè/Sikwi', fmt(sikwi)]
+  ]);
   S.showCalc=false; render(); scheduleSave();
 }
 
@@ -4265,6 +4403,13 @@ function applyKarelaj(){ if(blockIfReadOnly()) return;
   var sakKòl = Math.ceil((sifas*(Number(calcState.karelRannmanKòl)||5))/25);
   S.current.phases[d].items.push({id:nid(), d:'Karo/Seramik '+gwoseStr+'cm', u:'pyès', q:kantite, pm:0, pmo:0});
   S.current.phases[d].items.push({id:nid(), d:'Kòl Karo (sak 25kg)', u:'sak', q:sakKòl, pm:0, pmo:0});
+  logCalcEntry('karel','Karo',d,[
+    ['Sifas', fmt(sifas)+' m²'],
+    ['Gwosè karo', gwoseStr+' cm'],
+    ['% Pèt/koupe', fmt(calcState.karelPet)+'%'],
+    ['Karo nesesè', fmt(kantite)+' pyès'],
+    ['Kòl (sak 25kg)', fmt(sakKòl)]
+  ]);
   S.showCalc=false; render(); scheduleSave();
 }
 function applyDal(){ if(blockIfReadOnly()) return;
@@ -4285,6 +4430,17 @@ function applyDal(){ if(blockIfReadOnly()) return;
   S.current.phases[d].items.push({id:nid(), d:'Pwa Total Acier — Dal', u:'lbs', q:Math.round(dc.weightGrandTotal*100)/100, pm:0, pmo:0});
   S.current.phases[d].items.push({id:nid(), d:'Fil Ligati — Dal', u:'m', q:Math.ceil(dc.ligatiTotal), pm:0, pmo:0});
 
+  logCalcEntry('dal','Dal',d,[
+    ['Dimansyon', fmt(calcState.dalLonge)+' × '+fmt(calcState.dalLaje)+' m'],
+    ['Epesè', fmt(calcState.dalEpes)+' m'],
+    ['Volim beton', fmt(dc.vol)+' m³'],
+    ['Ciman', fmt(dc.cimentSak)+' sak'],
+    ['Nap 1 — Dyamèt X/Y', calcState.dalDiamX+' / '+calcState.dalDiamY],
+    ['Nap 1 — Bar X/Y', fmt(dc.n1.barsNeededX)+' / '+fmt(dc.n1.barsNeededY)],
+    ['Nap 2', dc.nappes===2 ? (calcState.dalDiamX2+' / '+calcState.dalDiamY2+' — '+fmt(dc.n2.barsNeededX)+' / '+fmt(dc.n2.barsNeededY)+' bar') : 'Pa gen'],
+    ['Pwa Total Acier Dal', fmt(dc.weightGrandTotal)+' lbs'],
+    ['Fil Ligati', fmt(dc.ligatiTotal)+' m']
+  ]);
   if(calcState.dalPoutreOn){
     var dp = computeDallePoutre();
     S.current.phases[d].items.push({id:nid(), d:'Siman ('+(Number(calcState.sakKg)||45)+'kg/sak) — Poutre Noyée', u:'sak', q:dp.cimentSak, pm:0, pmo:0});
@@ -4296,6 +4452,15 @@ function applyDal(){ if(blockIfReadOnly()) return;
     S.current.phases[d].items.push({id:nid(), d:'Fè Etriye '+calcState.dalPoutreDiamEtriye+' — Poutre Noyée', u:'bar', q:dp.etriyeBarNeeded, pm:0, pmo:0});
     S.current.phases[d].items.push({id:nid(), d:'Pwa Total Acier — Poutre Noyée', u:'lbs', q:Math.round(dp.weightTotal*100)/100, pm:0, pmo:0});
     S.current.phases[d].items.push({id:nid(), d:'Fil Ligati — Poutre Noyée', u:'m', q:Math.ceil(dp.ligatiTotal), pm:0, pmo:0});
+    logCalcEntry('dalPoutre','Poutre Noyée',d,[
+      ['Dimansyon', fmt(calcState.dalPoutreLaje)+'×'+fmt(calcState.dalPoutreWote)+' cm'],
+      ['Volim beton', fmt(dp.vol)+' m³'],
+      ['Fè Sipeyè', calcState.dalPoutreDiamSup+' — '+fmt(dp.barSupNeeded)+' bar'],
+      ['Fè Enferyè', calcState.dalPoutreDiamInf+' — '+fmt(dp.barInfNeeded)+' bar'],
+      ['Etriye', calcState.dalPoutreDiamEtriye+' — '+fmt(dp.etriyeBarNeeded)+' bar'],
+      ['Pwa Total Acier', fmt(dp.weightTotal)+' lbs'],
+      ['Fil Ligati', fmt(dp.ligatiTotal)+' m']
+    ]);
   }
   S.showCalc=false; render(); scheduleSave();
 }
@@ -4311,6 +4476,20 @@ function applyPoutre(){ if(blockIfReadOnly()) return;
   if(pc2.poutInf.nb>0) S.current.phases[d].items.push({id:nid(), d:'Fè Anba '+pc2.poutInf.diam+' ('+pc2.poutInf.nb+' bar/poutre) — Poutre', u:'bar', q:pc2.poutInf.barNeeded, pm:0, pmo:0});
   S.current.phases[d].items.push({id:nid(), d:'Fè Etriye '+calcState.poutEtriyeDyamet+' — Poutre', u:'bar', q:pc2.poutEtriyeBarNeeded, pm:0, pmo:0});
   S.current.phases[d].items.push({id:nid(), d:'Fil Ligati — Poutre', u:'m', q:Math.ceil(pc2.poutLigatiTotal), pm:0, pmo:0});
+  logCalcEntry('poutre','Poutre',d,[
+    ['Dimansyon (L×E)', fmt(calcState.poutLaje)+'×'+fmt(calcState.poutWote)+' cm'],
+    ['Longè', fmt(calcState.poutLonge)+' m'],
+    ['Kantite poutre', fmt(calcState.poutKantite)],
+    ['Volim beton', fmt(pc2.poutVol)+' m³'],
+    ['Ciman', fmt(pc2.poutCimentSak)+' sak'],
+    ['Fè Anwo', pc2.poutSup.nb+'× '+pc2.poutSup.diam+' (dev. '+fmt(pc2.poutSup.devLong)+' m, '+pc2.poutSup.splice+' jwenti)'],
+    ['Fè Anba', pc2.poutInf.nb+'× '+pc2.poutInf.diam+' (dev. '+fmt(pc2.poutInf.devLong)+' m, '+pc2.poutInf.splice+' jwenti)'],
+    ['Pwa Fè Anwo+Anba', fmt(pc2.poutSup.weight+pc2.poutInf.weight)+' lbs'],
+    ['Etriye', calcState.poutEtriyeDyamet+' · esp. '+fmt(calcState.poutEtriyeEspasman)+' cm · '+fmt(pc2.poutQtyEtriye)+' pyès'],
+    ['Longè komèsyal bar', fmt(pc2.poutBarLongeM)+' m'],
+    ['Pwa Total Acier Poutre', fmt(pc2.poutWeightTotal)+' lbs'],
+    ['Fil Ligati', fmt(pc2.poutLigatiTotal)+' m']
+  ]);
   S.showCalc=false; render(); scheduleSave();
 }
 function applyKrepisaj(){ if(blockIfReadOnly()) return;
@@ -4325,6 +4504,16 @@ function applyKrepisaj(){ if(blockIfReadOnly()) return;
   var sab = vol*ct.sab*pet;
   S.current.phases[d].items.push({id:nid(), d:'Siman Krepisaj/Anduí', u:'sak', q:cimentSak, pm:0, pmo:0});
   S.current.phases[d].items.push({id:nid(), d:'Sab Krepisaj/Anduí', u:'m³', q:Math.round(sab*100)/100, pm:0, pmo:0});
+  logCalcEntry('krepi','Krepisaj/Anduí',d,[
+    ['Longè mi total', fmt(calcState.krepiLonge)+' ml'],
+    ['Wotè mi', fmt(calcState.krepiWote)+' m'],
+    ['Ouvèti (pòt/fenèt)', fmt(calcState.krepiOuveti)+' m²'],
+    ['Sifas', fmt(sifas)+' m²'],
+    ['Epesè kouch', fmt(calcState.krepiEpes)+' cm'],
+    ['Volim mòtye', fmt(vol)+' m³'],
+    ['Ciman', fmt(cimentSak)+' sak'],
+    ['Sab', fmt(sab)+' m³']
+  ]);
   S.showCalc=false; render(); scheduleSave();
 }
 function applyChapant(){ if(blockIfReadOnly()) return;
@@ -4351,6 +4540,16 @@ function applyChapant(){ if(blockIfReadOnly()) return;
   S.current.phases[d].items.push({id:nid(), d:'Poto Etè Metalik (sipò tanporè)', u:'pyès', q:kantitePoto, pm:0, pmo:0, tip:'lokasyon'});
   S.current.phases[d].items.push({id:nid(), d:'Plwaywoud (fèy 4x8 pye)', u:'fèy', q:kantiteFèy, pm:0, pmo:0});
   S.current.phases[d].items.push({id:nid(), d:'Klou '+calcState.chapKlouGwose, u:'lib', q:klouLib, pm:0, pmo:0});
+  logCalcEntry('chap','Chapant',d,[
+    ['Dimansyon twati', fmt(longeM)+' × '+fmt(lajeM)+' m'],
+    ['Espasman chevron', fmt(calcState.chapEspasman)+' cm'],
+    ['Kantite chevron', fmt(kantiteChevron)],
+    ['Longè bwa komèsyal', fmt(calcState.chapLongèBwa||12)+' pye'],
+    ['Chevron '+(calcState.chapBwaTip||''), fmt(kantitePlanch)+' pyès'],
+    ['Poto Etè (sipò tanporè)', fmt(kantitePoto)],
+    ['Plwaywoud (fèy 4x8 pye)', fmt(kantiteFèy)],
+    ['Klou '+(calcState.chapKlouGwose||''), fmt(klouLib)+' lib']
+  ]);
   S.showCalc=false; render(); scheduleSave();
 }
 // ================= AI ASSISTANT =================
@@ -4594,16 +4793,65 @@ function templateCompact(p, company, totals, sub, majAmt, finalHTG, finalUSD){
   + '</div>';
 }
 
+function templateCalcNote(p, company, calcLog){
+  var groups = {}, order = [];
+  (calcLog||[]).forEach(function(e){
+    var key = e.phase;
+    if(!(key in groups)){ groups[key]=[]; order.push(key); }
+    groups[key].push(e);
+  });
+  var body = order.map(function(key){
+    var ph = p.phases[key];
+    var label = ph ? (ph.n+'. '+ph.label) : 'Lòt';
+    var cards = groups[key].map(function(e){
+      var rows = e.rows.map(function(r){
+        return '<tr><td style="padding:3px 8px 3px 0;color:#666;vertical-align:top;width:52%;">'+esc(r[0])+'</td><td style="padding:3px 0;text-align:right;font-weight:600;vertical-align:top;">'+esc(String(r[1]))+'</td></tr>';
+      }).join('');
+      return '<div style="border:1px solid #e6e6e6;border-radius:8px;padding:10px 12px;margin-bottom:10px;break-inside:avoid;page-break-inside:avoid;">'
+        + '<div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:6px;border-bottom:1px solid #f0f0f0;padding-bottom:6px;">'
+        + '<span style="font-family:\'Big Shoulders Display\',sans-serif;font-weight:700;font-size:13px;text-transform:uppercase;color:#16232C;">'+esc(e.label)+'</span>'
+        + '<span class="mono" style="font-size:9px;color:#999;text-transform:uppercase;letter-spacing:.03em;">'+esc(e.tabLabel)+'</span>'
+        + '</div>'
+        + '<table style="width:100%;border-collapse:collapse;font-size:10.5px;">'+rows+'</table>'
+        + '</div>';
+    }).join('');
+    return '<h3 style="font-family:\'Big Shoulders Display\',sans-serif;font-weight:700;font-size:14px;text-transform:uppercase;margin:18px 0 8px;border-left:4px solid #FFB200;padding-left:8px;">'+esc(label)+'</h3>'
+      + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">'+cards+'</div>';
+  }).join('');
+  var totalCount = (calcLog||[]).length;
+
+  return '<div style="max-width:750px;margin:0 auto;padding:30px;font-family:Inter,sans-serif;color:#16232C;">'
+  + '<div style="display:flex;justify-content:space-between;align-items:flex-start;border-bottom:3px solid #FFB200;padding-bottom:14px;">'
+    + '<div><img src="'+(company.logo||('data:image/jpeg;base64,'+DEFAULT_LOGO_B64))+'" style="height:52px;display:block;"><p style="font-family:\'Big Shoulders Display\',sans-serif;font-weight:700;font-size:15px;text-transform:uppercase;margin:8px 0 0;">'+esc(company.non||'GLC Construction HT')+'</p><p style="font-size:11px;color:#666;margin:2px 0 0;">'+(company.tel?('Telefòn: '+esc(company.tel)):'')+(company.adres?(' — '+esc(company.adres)):'')+'</p></div>'
+    + '<div style="text-align:right;"><p class="mono" style="font-size:9px;text-transform:uppercase;letter-spacing:.05em;color:#999;margin:0 0 4px;">Nòt Kalkil Teknik</p><p style="font-family:\'Big Shoulders Display\',sans-serif;font-size:17px;font-weight:700;margin:0;">'+esc(p.devisNo||'')+'</p><p style="font-size:10px;color:#666;margin:2px 0 0;">'+esc(p.dat||'')+'</p></div>'
+  + '</div>'
+  + '<div style="display:flex;justify-content:space-between;margin-top:14px;font-size:12px;">'
+    + '<div><strong>Pwojè:</strong> '+esc(p.projet||'—')+'<br><strong>Adrès Chantye:</strong> '+esc(p.adres||'—')+'</div>'
+    + '<div style="text-align:right;"><strong>Kliyan:</strong> '+esc(p.kliyan||'—')+'<br><strong>Kantite Eleman Kalkile:</strong> '+totalCount+'</div>'
+  + '</div>'
+  + (totalCount===0
+      ? '<p style="margin-top:40px;text-align:center;color:#999;font-size:13px;">Poko gen okenn kalkil ki anrejistre pou pwojè sa a.<br>Sèvi ak Zouti Kalkil yo epi klike "Ajoute Tout" pou kòmanse bati Nòt Kalkil la.</p>'
+      : body)
+  + '<div style="margin-top:22px;padding-top:12px;border-top:1px solid #ddd;font-size:9px;color:#888;">'
+    + '<p style="margin:0;"><strong>Avètisman:</strong> Kalkil sa yo se estimasyon baze sou done ou antre yo ak fòmil estanda pou konstriksyon an Ayiti. Yo pa ranplase yon etid oswa apwobasyon yon enjenyè strikti agreye. Verifye tout dimansyon, dyamèt ak espasman ak plan ofisyèl pwojè a anvan egzekisyon.</p>'
+  + '</div>'
+  + '<div style="margin-top:14px;font-size:10px;color:#666;">Prepare pa '+esc(company.non||'GLC Construction HT')+' — '+esc(p.dat||'')+'</div>'
+  + '</div>';
+}
 function updatePrintSheet(){
   var el = document.getElementById('printSheet');
   if(!el || !S.current) { if(el) el.innerHTML=''; return; }
   var p = S.current;
+  var company = S.company || {tel:'',adres:'',kondisyon:DEFAULT_TERMS};
+  if(S.printMode==='calcNote'){
+    el.innerHTML = templateCalcNote(p, company, p.calcLog||[]);
+    return;
+  }
   var totals = totalsFor(p.phases);
   var sub = totals.reduce(function(a,b){return a+b;},0);
   var majAmt = sub*((Number(p.majorasyon)||0)/100);
   var finalHTG = sub+majAmt;
   var finalUSD = finalHTG/(Number(p.tauxUSD)||1);
-  var company = S.company || {tel:'',adres:'',kondisyon:DEFAULT_TERMS};
   var tpl = company.pdfTemplate || 'klasik';
   var builder = tpl==='modern' ? templateModern : (tpl==='minimal' ? templateMinimal : (tpl==='formal' ? templateFormal : (tpl==='compact' ? templateCompact : templateKlasik)));
   el.innerHTML = builder(p, company, totals, sub, majAmt, finalHTG, finalUSD);
