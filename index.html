@@ -3876,6 +3876,14 @@ var calcState = { longe:'', wote:'', ouveti:'', blokM2:12.5, pet:5,
   krepiLonge:'', krepiWote:'', krepiOuveti:'', krepiEpes:1.5, krepiBetonType:'mortier_krepi', krepiPet:5, destKrepi:6,
   chapLonge:'', chapLaje:'', chapBwaTip:'2x4', chapEspasman:40, chapLongèBwa:12, chapPetBwa:10,
   chapEspasmanPoto:1.5, chapPlwaywoudPet:10, chapKlouGwose:'2 1/2"', chapKlouRannman:0.15, chapKlouRannmanFèy:0.35, destChap:5,
+  eskWoteTotal:'', eskJiwon:28, eskKontrmach:17, eskLaje:1, eskEpesèDal:15, eskBetonType:'arme350', eskBetonPet:5, destEsk:4,
+  mirLonge:'', mirWote:'', mirEpesèBaz:25, mirEpesèTèt:20, mirBetonType:'arme350', mirBetonPet:5,
+  mirFeOn:true, mirFeDyamet:'1/2" (#4)', mirFeEspasman:20, mirFeAnkraj:0.4, mirFeKouvèti:5,
+  mirBarLongeM:6, mirBarLongeCustom:'', destMir:2,
+  fsMoun:5, fsDebiMoun:150, fsRetansyonJou:3, fsLonge:'', fsLaje:'', fsWote:1.5,
+  fsBetonType:'arme350', fsBetonPet:5, fsMiBlok:true, fsBlokM2:12.5, destFs:6,
+  pavLonge:'', pavLaje:'', pavPaveL:0.40, pavPaveW:0.40, pavEpesèSab:5, pavEpesèGravye:0, pavPet:10, destPav:6,
+  kofType:'poto', kofLonge:'', kofLaje:'', kofWote:'', kofPet:10, destKof:3,
   destBlok:3, destFe:2, destBeton:2, destVol:6 };
 
 function computePoto(){
@@ -4034,6 +4042,146 @@ function computeSemel(){
     weightLbX:weightLbX, weightLbY:weightLbY, weightLbTotal:weightLbTotal,
     ligatiKwazman:ligatiKwazman, ligatiTotal:ligatiTotal
   };
+}
+// ---- ESKALYE (staircase) ----
+function computeEskalye(){
+  var woteTotalM = Number(calcState.eskWoteTotal)||0;
+  var woteTotalCm = woteTotalM*100;
+  var kontrmachSijere = Number(calcState.eskKontrmach)||17;
+  var nMach = woteTotalCm>0 ? Math.max(1,Math.round(woteTotalCm/kontrmachSijere)) : 0;
+  var kontrmachReel = nMach>0 ? woteTotalCm/nMach : 0; // cm
+  var jiwonCm = Number(calcState.eskJiwon)||28;
+  var lajeM = Number(calcState.eskLaje)||1;
+  var epesèDalM = (Number(calcState.eskEpesèDal)||15)/100;
+  var nMarchDekouvri = Math.max(0,nMach-1); // pa gen jiwon sou dènye macho (li rive sou etaj la)
+  var longeTotalRun = (nMarchDekouvri*jiwonCm)/100; // m, longè orizontal eskalye a
+  var penteLonge = Math.sqrt(Math.pow(longeTotalRun,2)+Math.pow(woteTotalM,2)); // longè dal enkline (limon)
+  // Volim mach yo (chak mach se yon triyang: 1/2 * kontrmach * jiwon), miltipliye pa laje
+  var kontrmachM = kontrmachReel/100, jiwonM = jiwonCm/100;
+  var volMach = nMach * (0.5*kontrmachM*jiwonM) * lajeM;
+  // Volim dal enkline (limon/pallier) anba mach yo
+  var volDal = penteLonge * epesèDalM * lajeM;
+  var volTotal = volMach + volDal;
+  var ct = findConcrete(calcState.eskBetonType);
+  var pet = 1+(Number(calcState.eskBetonPet)||0)/100;
+  var cimentKg = volTotal*ct.ciment*pet;
+  var cimentSak = Math.ceil(cimentKg/45);
+  var sab = volTotal*ct.sab*pet;
+  var gravye = volTotal*ct.gravye*pet;
+  var dlo = volTotal*ct.dloL*pet;
+  return {
+    nMach:nMach, kontrmachReel:kontrmachReel, jiwonCm:jiwonCm, lajeM:lajeM,
+    longeTotalRun:longeTotalRun, penteLonge:penteLonge, epesèDalM:epesèDalM,
+    volMach:volMach, volDal:volDal, volTotal:volTotal,
+    cimentKg:cimentKg, cimentSak:cimentSak, sab:sab, gravye:gravye, dlo:dlo
+  };
+}
+// ---- MI SOUTÈNMAN (retaining wall) ----
+function computeMir(){
+  var M_TO_FT = 3.28084;
+  var longeM = Number(calcState.mirLonge)||0, woteM = Number(calcState.mirWote)||0;
+  var epesèBazM = (Number(calcState.mirEpesèBaz)||0)/100, epesèTètM = (Number(calcState.mirEpesèTèt)||0)/100;
+  var aireSeksyon = ((epesèBazM+epesèTètM)/2)*woteM; // seksyon trapezoidal
+  var volTotal = aireSeksyon*longeM;
+  var ct = findConcrete(calcState.mirBetonType);
+  var pet = 1+(Number(calcState.mirBetonPet)||0)/100;
+  var cimentKg = volTotal*ct.ciment*pet;
+  var cimentSak = Math.ceil(cimentKg/45);
+  var sab = volTotal*ct.sab*pet;
+  var gravye = volTotal*ct.gravye*pet;
+  var dlo = volTotal*ct.dloL*pet;
+  // Fè vètikal (poto etriye long mi a), espase chak X cm
+  var feOn = !!calcState.mirFeOn;
+  var espM = (Number(calcState.mirFeEspasman)||20)/100;
+  var nBar = feOn && espM>0 ? Math.max(1,Math.ceil(longeM/espM)+1) : 0;
+  var ankrajM = Number(calcState.mirFeAnkraj)||0.4;
+  var longèParBar = woteM+ankrajM;
+  var pyeTotal = nBar*longèParBar*M_TO_FT;
+  var lbPerPye = REBAR[calcState.mirFeDyamet] || REBAR['1/2" (#4)'];
+  var weightLb = pyeTotal*lbPerPye;
+  var barLongeM = calcState.mirBarLongeM==='custom' ? (Number(calcState.mirBarLongeCustom)||6) : (Number(calcState.mirBarLongeM)||6);
+  var barLongeFt = barLongeM*M_TO_FT;
+  var totalLongM = nBar*longèParBar;
+  var barsNeeded = Math.ceil(totalLongM/barLongeM);
+  return {
+    longeM:longeM, woteM:woteM, epesèBazM:epesèBazM, epesèTètM:epesèTètM, aireSeksyon:aireSeksyon, volTotal:volTotal,
+    cimentKg:cimentKg, cimentSak:cimentSak, sab:sab, gravye:gravye, dlo:dlo,
+    feOn:feOn, nBar:nBar, longèParBar:longèParBar, pyeTotal:pyeTotal, weightLb:weightLb, barsNeeded:barsNeeded, totalLongM:totalLongM
+  };
+}
+// ---- FÒS SEPTIK (septic tank) ----
+function computeFosSeptik(){
+  var moun = Number(calcState.fsMoun)||0;
+  var debi = Number(calcState.fsDebiMoun)||150; // litè/moun/jou
+  var jou = Number(calcState.fsRetansyonJou)||3;
+  var kapasiteRekòmandeL = moun*debi*jou;
+  var kapasiteRekòmandeM3 = kapasiteRekòmandeL/1000;
+  var longeM = Number(calcState.fsLonge)||0, lajeM = Number(calcState.fsLaje)||0, woteM = Number(calcState.fsWote)||1.5;
+  var volReyèl = longeM*lajeM*woteM;
+  var ct = findConcrete(calcState.fsBetonType);
+  var pet = 1+(Number(calcState.fsBetonPet)||0)/100;
+  // Dal (kouvèti + fon) — 2 dal (anba + anwo), epesè 10cm chak, sifas = L*l chak
+  var epesèDalM = 0.10;
+  var volDal = longeM*lajeM*epesèDalM*2;
+  var cimentKg = volDal*ct.ciment*pet;
+  var cimentSak = Math.ceil(cimentKg/45);
+  var sab = volDal*ct.sab*pet;
+  var gravye = volDal*ct.gravye*pet;
+  var dlo = volDal*ct.dloL*pet;
+  // Mi (mason an blòk) — perimèt * wotè
+  var miOn = !!calcState.fsMiBlok;
+  var perimèt = 2*(longeM+lajeM);
+  var aireMi = perimèt*woteM;
+  var blokM2 = Number(calcState.fsBlokM2)||12.5;
+  var blokKantite = Math.ceil(aireMi*blokM2);
+  return {
+    moun:moun, kapasiteRekòmandeL:kapasiteRekòmandeL, kapasiteRekòmandeM3:kapasiteRekòmandeM3,
+    longeM:longeM, lajeM:lajeM, woteM:woteM, volReyèl:volReyèl,
+    volDal:volDal, cimentKg:cimentKg, cimentSak:cimentSak, sab:sab, gravye:gravye, dlo:dlo,
+    miOn:miOn, perimèt:perimèt, aireMi:aireMi, blokKantite:blokKantite
+  };
+}
+// ---- PAVAJ (paving) ----
+function computePavaj(){
+  var longeM = Number(calcState.pavLonge)||0, lajeM = Number(calcState.pavLaje)||0;
+  var aire = longeM*lajeM;
+  var pet = 1+(Number(calcState.pavPet)||0)/100;
+  var aireAvekPet = aire*pet;
+  var paveL = Number(calcState.pavPaveL)||0.40, paveW = Number(calcState.pavPaveW)||0.40;
+  var aireParPave = paveL*paveW;
+  var paveKantite = aireParPave>0 ? Math.ceil(aireAvekPet/aireParPave) : 0;
+  var epesèSabM = (Number(calcState.pavEpesèSab)||0)/100;
+  var volSab = aire*epesèSabM;
+  var epesèGravyeM = (Number(calcState.pavEpesèGravye)||0)/100;
+  var volGravye = aire*epesèGravyeM;
+  return { longeM:longeM, lajeM:lajeM, aire:aire, paveKantite:paveKantite, volSab:volSab, volGravye:volGravye };
+}
+// ---- KOFRAJ (formwork) ----
+function computeKofraj(){
+  var type = calcState.kofType||'poto';
+  var a = Number(calcState.kofLonge)||0; // longè (m)
+  var b = Number(calcState.kofLaje)||0;  // lajè / epesè seksyon (m)
+  var h = Number(calcState.kofWote)||0;  // wotè / longè eleman an (m), selon tip
+  var sifas = 0;
+  if(type==='poto'){ // a,b = seksyon poto a (m); h = wotè poto a
+    sifas = 2*(a+b)*h;
+  } else if(type==='poutre'){ // a=longè poutre, b=lajè, h=wotè (2 kote + anba)
+    sifas = (2*h+b)*a;
+  } else if(type==='semel'){ // semèl izole: a,b = dimansyon anba a; h = wotè semèl la
+    sifas = 2*(a+b)*h;
+  } else if(type==='dal'){ // rebò dal: a=longè, b=lajè, h=epesè dal la
+    sifas = 2*(a+b)*h;
+  } else { // mi soutènman: a=longè mi, h=wotè mi (2 fasad)
+    sifas = 2*a*h;
+  }
+  var pet = 1+(Number(calcState.kofPet)||0)/100;
+  var sifasAvekPet = Math.max(0,sifas*pet);
+  var SIFAS_FEY = 2.9768; // fèy kontreplake estanda 4×8 pye (1.22×2.44m)
+  var kantiteFèy = Math.ceil(sifasAvekPet/SIFAS_FEY);
+  var M_TO_FT = 3.28084;
+  var sifasFt2 = sifasAvekPet*(M_TO_FT*M_TO_FT);
+  var kantitePlanch1x12 = Math.ceil(sifasFt2/1); // planch 1"×12" laje 1 pye — pye lineyè ≈ pye kare
+  return { type:type, sifas:sifas, sifasAvekPet:sifasAvekPet, kantiteFèy:kantiteFèy, sifasFt2:sifasFt2, kantitePlanch1x12:kantitePlanch1x12 };
 }
 function computeDalle(){
   var M_TO_FT = 3.28084;
@@ -4228,6 +4376,13 @@ function calcModal(p){
 
   var volV = Math.max(0,(Number(calcState.volL)||0)*(Number(calcState.volW)||0)*(Number(calcState.volH)||0));
 
+  // ---- ESKALYE / MIR / FÒS SEPTIK / PAVAJ / KOFRAJ ----
+  var ec = computeEskalye();
+  var mc = computeMir();
+  var fc = computeFosSeptik();
+  var pvc = computePavaj();
+  var kc = computeKofraj();
+
   // ---- TÒL / KOUVÈTI (roofing sheet metal) ----
   var PYE_TO_M = 0.3048;
   var optsTol = p.phases.map(function(ph,i){ return '<option value="'+i+'" '+(i===calcState.destTol?'selected':'')+'>'+esc(ph.label)+'</option>'; }).join('');
@@ -4312,7 +4467,7 @@ function calcModal(p){
   var chapKlouLib = chapKlouChevron + chapKlouFèy;
 
   var tabs = '<div class="scrollx" style="margin-bottom:14px;">'
-    + tabBtn('beton',t('calc_tab_dosajBeton')) + tabBtn('fe',t('calc_tab_feBar')) + tabBtn('semel',t('calc_tab_semel')) + tabBtn('poto',t('calc_tab_poto')) + tabBtn('poutre',t('calc_tab_poutre')) + tabBtn('dal',t('calc_tab_dal')) + tabBtn('blok',t('calc_tab_blok')) + tabBtn('chap',t('calc_tab_chap')) + tabBtn('tol',t('calc_tab_tol')) + tabBtn('elek',t('calc_tab_elek')) + tabBtn('krepi',t('calc_tab_krepi')) + tabBtn('karel',t('calc_tab_karel')) + tabBtn('penti',t('calc_tab_penti')) + tabBtn('btu',t('calc_tab_btu')) + tabBtn('vol',t('calc_tab_vol'))
+    + tabBtn('beton',t('calc_tab_dosajBeton')) + tabBtn('fe',t('calc_tab_feBar')) + tabBtn('semel',t('calc_tab_semel')) + tabBtn('poto',t('calc_tab_poto')) + tabBtn('poutre',t('calc_tab_poutre')) + tabBtn('dal',t('calc_tab_dal')) + tabBtn('blok',t('calc_tab_blok')) + tabBtn('chap',t('calc_tab_chap')) + tabBtn('tol',t('calc_tab_tol')) + tabBtn('elek',t('calc_tab_elek')) + tabBtn('krepi',t('calc_tab_krepi')) + tabBtn('karel',t('calc_tab_karel')) + tabBtn('penti',t('calc_tab_penti')) + tabBtn('btu',t('calc_tab_btu')) + tabBtn('vol',t('calc_tab_vol')) + tabBtn('eskalye','Eskalye') + tabBtn('mir','Mi Soutènman') + tabBtn('fosSeptik','Fòs Septik') + tabBtn('pavaj','Pavaj') + tabBtn('kofraj','Kofraj')
     + '</div>';
 
   var body = '';
@@ -4897,6 +5052,134 @@ function calcModal(p){
       + resultBox([[t('calc_klouPouChevron'), fmt(chapKlouChevron)+' lib'],[t('calc_klouPouPlwaywoud'), fmt(chapKlouFèy)+' lib']], 'Klou '+calcState.chapKlouGwose+' Total (lib)', fmt(chapKlouLib))
       + destRow(optsChap, 'destChapSel', 'calcState.destChap=Number(this.value)', 'applyChapant()')
       + '<p class="mono" style="font-size:9px;color:var(--muted);margin-top:8px;">Kalkil senplifye — chevron, poto etè (lokasyon), plwaywoud, ak klou. Pant twati pa enkli — ogmante % pèt si twati a gen anpil pant.</p>';
+  } else if(calcTab==='eskalye'){
+    var optsEsk = p.phases.map(function(ph,i){ return '<option value="'+i+'" '+(i===calcState.destEsk?'selected':'')+'>'+esc(ph.label)+'</option>'; }).join('');
+    body = '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">'
+      + fieldHtml('Wotè Total (m)','<input type="text" inputmode="decimal" value="'+calcState.eskWoteTotal+'" name="cf_eskWoteTotal" oninput="calcUpd(\'eskWoteTotal\',this.value)" style="background:var(--white);border:1px solid var(--line);">')
+      + fieldHtml('Laje Eskalye (m)','<input type="text" inputmode="decimal" value="'+calcState.eskLaje+'" name="cf_eskLaje" oninput="calcUpd(\'eskLaje\',this.value)" style="background:var(--white);border:1px solid var(--line);">')
+      + '</div>'
+      + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px;">'
+      + fieldHtml('Kontrmach Vize (cm)','<input type="text" inputmode="decimal" value="'+calcState.eskKontrmach+'" name="cf_eskKontrmach" oninput="calcUpd(\'eskKontrmach\',this.value)" style="background:var(--white);border:1px solid var(--line);">')
+      + fieldHtml('Jiwon (cm)','<input type="text" inputmode="decimal" value="'+calcState.eskJiwon+'" name="cf_eskJiwon" oninput="calcUpd(\'eskJiwon\',this.value)" style="background:var(--white);border:1px solid var(--line);">')
+      + '</div>'
+      + '<div style="margin-top:8px;">'+fieldHtml('Epesè Dal/Limon (cm)','<input type="text" inputmode="decimal" value="'+calcState.eskEpesèDal+'" name="cf_eskEpesèDal" oninput="calcUpd(\'eskEpesèDal\',this.value)" style="background:var(--white);border:1px solid var(--line);">')+'</div>'
+      + '<div class="field" style="margin-top:8px;"><label>'+t('calc_tipBeton')+'</label><select name="cf_eskBetonType" onchange="calcUpd(\'eskBetonType\',this.value)" style="width:100%;font-size:13px;background:var(--white);border:1px solid var(--line);border-radius:6px;padding:7px 8px;">'
+        + CONCRETE_TYPES.map(function(c){ return '<option value="'+c.key+'" '+(c.key===calcState.eskBetonType?'selected':'')+'>'+esc(c.label)+'</option>'; }).join('')
+      + '</select></div>'
+      + fieldHtml(t('calc_petBeton'),'<input type="text" inputmode="decimal" value="'+calcState.eskBetonPet+'" name="cf_eskBetonPet" oninput="calcUpd(\'eskBetonPet\',this.value)" style="background:var(--white);border:1px solid var(--line);">')
+      + resultBox([['Kontrmach Reyèl', fmt(ec.kontrmachReel)+' cm'],['Longè Orizontal (Run)', fmt(ec.longeTotalRun)+' m'],['Longè Dal Enkline', fmt(ec.penteLonge)+' m']], 'Kantite Mach', fmt(ec.nMach))
+      + resultBox([['Volim Mach (Triyang)', fmt(ec.volMach)+' m³'],['Volim Dal/Limon', fmt(ec.volDal)+' m³'],[t('calc_ciman'), fmt(ec.cimentKg)+' kg'],[t('calc_sab'), fmt(ec.sab)+' m³'],[t('calc_gravye'), fmt(ec.gravye)+' m³'],[t('calc_dlo'), fmt(ec.dlo)+' L']], t('calc_volimBeton')+' Total', fmt(ec.volTotal)+' m³')
+      + destRow(optsEsk, 'destEskSel', 'calcState.destEsk=Number(this.value)', 'applyEskalye()')
+      + '<p class="mono" style="font-size:9px;color:var(--muted);margin-top:8px;">Règ jeneral konfò: 2×kontrmach + jiwon ≈ 60-64cm. Ajiste kontrmach vize pou jwenn yon konbinezon konfòtab.</p>';
+  } else if(calcTab==='mir'){
+    var optsMir = p.phases.map(function(ph,i){ return '<option value="'+i+'" '+(i===calcState.destMir?'selected':'')+'>'+esc(ph.label)+'</option>'; }).join('');
+    var diamOptsMir = Object.keys(REBAR).map(function(k){ return '<option value="'+esc(k)+'" '+(k===calcState.mirFeDyamet?'selected':'')+'>'+esc(k)+'</option>'; }).join('');
+    body = '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">'
+      + fieldHtml(t('calc_longeSimple'),'<input type="text" inputmode="decimal" value="'+calcState.mirLonge+'" name="cf_mirLonge" oninput="calcUpd(\'mirLonge\',this.value)" style="background:var(--white);border:1px solid var(--line);">')
+      + fieldHtml(t('calc_woteM'),'<input type="text" inputmode="decimal" value="'+calcState.mirWote+'" name="cf_mirWote" oninput="calcUpd(\'mirWote\',this.value)" style="background:var(--white);border:1px solid var(--line);">')
+      + '</div>'
+      + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px;">'
+      + fieldHtml('Epesè Baz (cm)','<input type="text" inputmode="decimal" value="'+calcState.mirEpesèBaz+'" name="cf_mirEpesèBaz" oninput="calcUpd(\'mirEpesèBaz\',this.value)" style="background:var(--white);border:1px solid var(--line);">')
+      + fieldHtml('Epesè Tèt (cm)','<input type="text" inputmode="decimal" value="'+calcState.mirEpesèTèt+'" name="cf_mirEpesèTèt" oninput="calcUpd(\'mirEpesèTèt\',this.value)" style="background:var(--white);border:1px solid var(--line);">')
+      + '</div>'
+      + '<div class="field" style="margin-top:8px;"><label>'+t('calc_tipBeton')+'</label><select name="cf_mirBetonType" onchange="calcUpd(\'mirBetonType\',this.value)" style="width:100%;font-size:13px;background:var(--white);border:1px solid var(--line);border-radius:6px;padding:7px 8px;">'
+        + CONCRETE_TYPES.map(function(c){ return '<option value="'+c.key+'" '+(c.key===calcState.mirBetonType?'selected':'')+'>'+esc(c.label)+'</option>'; }).join('')
+      + '</select></div>'
+      + fieldHtml(t('calc_petBeton'),'<input type="text" inputmode="decimal" value="'+calcState.mirBetonPet+'" name="cf_mirBetonPet" oninput="calcUpd(\'mirBetonPet\',this.value)" style="background:var(--white);border:1px solid var(--line);">')
+      + resultBox([['Seksyon Trapezoidal', fmt(mc.aireSeksyon)+' m²'],[t('calc_ciman'), fmt(mc.cimentKg)+' kg'],[t('calc_sab'), fmt(mc.sab)+' m³'],[t('calc_gravye'), fmt(mc.gravye)+' m³'],[t('calc_dlo'), fmt(mc.dlo)+' L']], t('calc_volimBeton'), fmt(mc.volTotal)+' m³')
+      + '<p style="font-size:11px;font-weight:600;text-transform:uppercase;color:var(--muted);margin:14px 0 6px;">Fè Vètikal (Poto Etriye)</p>'
+      + '<div style="display:flex;gap:6px;flex-wrap:wrap;">'
+        + '<button class="chip'+(mc.feOn?' active':'')+'" onclick="calcUpd(\'mirFeOn\',true)">Avèk Fè</button>'
+        + '<button class="chip'+(!mc.feOn?' active':'')+'" onclick="calcUpd(\'mirFeOn\',false)">San Fè</button>'
+      + '</div>'
+      + (mc.feOn ? (
+          '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px;">'
+          + '<div class="field"><label>'+t('calc_dyamet')+'</label><select name="cf_mirFeDyamet" onchange="calcUpd(\'mirFeDyamet\',this.value)" style="width:100%;font-size:13px;background:var(--white);border:1px solid var(--line);border-radius:6px;padding:7px 8px;">'+diamOptsMir+'</select></div>'
+          + fieldHtml('Espasman (cm)','<input type="text" inputmode="decimal" value="'+calcState.mirFeEspasman+'" name="cf_mirFeEspasman" oninput="calcUpd(\'mirFeEspasman\',this.value)" style="background:var(--white);border:1px solid var(--line);">')
+          + '</div>'
+          + fieldHtml('Ankraj nan Fondasyon (m)','<input type="text" inputmode="decimal" value="'+calcState.mirFeAnkraj+'" name="cf_mirFeAnkraj" oninput="calcUpd(\'mirFeAnkraj\',this.value)" style="background:var(--white);border:1px solid var(--line);">')
+          + '<p style="font-size:11px;font-weight:600;text-transform:uppercase;color:var(--muted);margin:14px 0 6px;">Longè Komèsyal Bar</p>'
+          + '<div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;">'
+            + [6,9,12].map(function(v){ return '<button class="chip'+(calcState.mirBarLongeM==v?' active':'')+'" onclick="calcUpd(\'mirBarLongeM\','+v+')">'+v+' m</button>'; }).join('')
+            + '<button class="chip'+(calcState.mirBarLongeM==='custom'?' active':'')+'" onclick="calcUpd(\'mirBarLongeM\',\'custom\')">Pèsonalize</button>'
+            + (calcState.mirBarLongeM==='custom' ? '<input type="text" inputmode="decimal" value="'+calcState.mirBarLongeCustom+'" name="cf_mirBarLongeCustom" oninput="calcUpd(\'mirBarLongeCustom\',this.value)" style="width:70px;font-size:13px;background:var(--white);border:1px solid var(--line);border-radius:6px;padding:7px 8px;" placeholder="m">' : '')
+          + '</div>'
+          + resultBox([['Kantite Bar (pozisyon)', fmt(mc.nBar)],['Longè pa Bar', fmt(mc.longèParBar)+' m'],['Longè Total', fmt(mc.totalLongM)+' m'],['Pwa Total', fmt(mc.weightLb)+' lbs']], 'Bar Komèsyal Nesesè', fmt(mc.barsNeeded))
+        ) : '')
+      + destRow(optsMir, 'destMirSel', 'calcState.destMir=Number(this.value)', 'applyMir()')
+      + '<p class="mono" style="font-size:9px;color:var(--muted);margin-top:8px;">Seksyon trapezoidal (baz pi laj pase tèt la). Pou mi ki wo anpil oswa ki sipòte anpil tè, konsilte yon enjenyè estriktirèl.</p>';
+  } else if(calcTab==='fosSeptik'){
+    var optsFs = p.phases.map(function(ph,i){ return '<option value="'+i+'" '+(i===calcState.destFs?'selected':'')+'>'+esc(ph.label)+'</option>'; }).join('');
+    body = '<p style="font-size:11px;font-weight:600;text-transform:uppercase;color:var(--muted);margin:0 0 6px;">Kapasite Rekòmande</p>'
+      + '<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;">'
+      + fieldHtml('Kantite Moun','<input type="text" inputmode="decimal" value="'+calcState.fsMoun+'" name="cf_fsMoun" oninput="calcUpd(\'fsMoun\',this.value)" style="background:var(--white);border:1px solid var(--line);">')
+      + fieldHtml('Debi (L/moun/jou)','<input type="text" inputmode="decimal" value="'+calcState.fsDebiMoun+'" name="cf_fsDebiMoun" oninput="calcUpd(\'fsDebiMoun\',this.value)" style="background:var(--white);border:1px solid var(--line);">')
+      + fieldHtml('Retansyon (jou)','<input type="text" inputmode="decimal" value="'+calcState.fsRetansyonJou+'" name="cf_fsRetansyonJou" oninput="calcUpd(\'fsRetansyonJou\',this.value)" style="background:var(--white);border:1px solid var(--line);">')
+      + '</div>'
+      + resultBox([['Kapasite Rekòmande', fmt(fc.kapasiteRekòmandeL)+' L']], 'Volim Rekòmande', fmt(fc.kapasiteRekòmandeM3)+' m³')
+      + '<p style="font-size:11px;font-weight:600;text-transform:uppercase;color:var(--muted);margin:14px 0 6px;">Dimansyon Reyèl Fòs la</p>'
+      + '<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;">'
+      + fieldHtml(t('calc_longeSimple'),'<input type="text" inputmode="decimal" value="'+calcState.fsLonge+'" name="cf_fsLonge" oninput="calcUpd(\'fsLonge\',this.value)" style="background:var(--white);border:1px solid var(--line);">')
+      + fieldHtml(t('calc_lajeSimple'),'<input type="text" inputmode="decimal" value="'+calcState.fsLaje+'" name="cf_fsLaje" oninput="calcUpd(\'fsLaje\',this.value)" style="background:var(--white);border:1px solid var(--line);">')
+      + fieldHtml(t('calc_woteM'),'<input type="text" inputmode="decimal" value="'+calcState.fsWote+'" name="cf_fsWote" oninput="calcUpd(\'fsWote\',this.value)" style="background:var(--white);border:1px solid var(--line);">')
+      + '</div>'
+      + resultBox([], 'Volim Reyèl', fmt(fc.volReyèl)+' m³'+(fc.volReyèl>0 && fc.kapasiteRekòmandeM3>0 ? (fc.volReyèl>=fc.kapasiteRekòmandeM3?' ✓':' ⚠ ti pase rekòmandasyon'):''))
+      + '<p style="font-size:11px;font-weight:600;text-transform:uppercase;color:var(--muted);margin:14px 0 6px;">Mi (Mason Blòk)</p>'
+      + '<div style="display:flex;gap:6px;flex-wrap:wrap;">'
+        + '<button class="chip'+(fc.miOn?' active':'')+'" onclick="calcUpd(\'fsMiBlok\',true)">Blòk</button>'
+        + '<button class="chip'+(!fc.miOn?' active':'')+'" onclick="calcUpd(\'fsMiBlok\',false)">Beton Kole</button>'
+      + '</div>'
+      + (fc.miOn ? fieldHtml(t('calc_blokPaM2'),'<input type="text" inputmode="decimal" value="'+calcState.fsBlokM2+'" name="cf_fsBlokM2" oninput="calcUpd(\'fsBlokM2\',this.value)" style="background:var(--white);border:1px solid var(--line);">') : '')
+      + (fc.miOn ? resultBox([['Sifas Mi (perimèt×wotè)', fmt(fc.aireMi)+' m²']], 'Blòk Nesesè', fmt(fc.blokKantite)) : '')
+      + '<p style="font-size:11px;font-weight:600;text-transform:uppercase;color:var(--muted);margin:14px 0 6px;">Dal (Anba + Kouvèti, 10cm chak)</p>'
+      + '<div class="field"><label>'+t('calc_tipBeton')+'</label><select name="cf_fsBetonType" onchange="calcUpd(\'fsBetonType\',this.value)" style="width:100%;font-size:13px;background:var(--white);border:1px solid var(--line);border-radius:6px;padding:7px 8px;">'
+        + CONCRETE_TYPES.map(function(c){ return '<option value="'+c.key+'" '+(c.key===calcState.fsBetonType?'selected':'')+'>'+esc(c.label)+'</option>'; }).join('')
+      + '</select></div>'
+      + fieldHtml(t('calc_petBeton'),'<input type="text" inputmode="decimal" value="'+calcState.fsBetonPet+'" name="cf_fsBetonPet" oninput="calcUpd(\'fsBetonPet\',this.value)" style="background:var(--white);border:1px solid var(--line);">')
+      + resultBox([['Volim Dal', fmt(fc.volDal)+' m³'],[t('calc_ciman'), fmt(fc.cimentKg)+' kg'],[t('calc_sab'), fmt(fc.sab)+' m³'],[t('calc_gravye'), fmt(fc.gravye)+' m³'],[t('calc_dlo'), fmt(fc.dlo)+' L']], t('calc_sakSiman'), fmt(fc.cimentSak))
+      + destRow(optsFs, 'destFsSel', 'calcState.destFs=Number(this.value)', 'applyFosSeptik()')
+      + '<p class="mono" style="font-size:9px;color:var(--muted);margin-top:8px;">Estimasyon senplifye. Verifye ak nòm sanitè lokal yo (distans ak sous dlo, pèmeyabilite tè, elatriye) anvan konstriksyon.</p>';
+  } else if(calcTab==='pavaj'){
+    var optsPav = p.phases.map(function(ph,i){ return '<option value="'+i+'" '+(i===calcState.destPav?'selected':'')+'>'+esc(ph.label)+'</option>'; }).join('');
+    body = '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">'
+      + fieldHtml(t('calc_longeSimple'),'<input type="text" inputmode="decimal" value="'+calcState.pavLonge+'" name="cf_pavLonge" oninput="calcUpd(\'pavLonge\',this.value)" style="background:var(--white);border:1px solid var(--line);">')
+      + fieldHtml(t('calc_lajeSimple'),'<input type="text" inputmode="decimal" value="'+calcState.pavLaje+'" name="cf_pavLaje" oninput="calcUpd(\'pavLaje\',this.value)" style="background:var(--white);border:1px solid var(--line);">')
+      + '</div>'
+      + '<p style="font-size:11px;font-weight:600;text-transform:uppercase;color:var(--muted);margin:14px 0 6px;">Gwosè Pave (m)</p>'
+      + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">'
+      + fieldHtml('Longè Pave (m)','<input type="text" inputmode="decimal" value="'+calcState.pavPaveL+'" name="cf_pavPaveL" oninput="calcUpd(\'pavPaveL\',this.value)" style="background:var(--white);border:1px solid var(--line);">')
+      + fieldHtml('Laje Pave (m)','<input type="text" inputmode="decimal" value="'+calcState.pavPaveW+'" name="cf_pavPaveW" oninput="calcUpd(\'pavPaveW\',this.value)" style="background:var(--white);border:1px solid var(--line);">')
+      + '</div>'
+      + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px;">'
+      + fieldHtml('Epesè Kouch Sab (cm)','<input type="text" inputmode="decimal" value="'+calcState.pavEpesèSab+'" name="cf_pavEpesèSab" oninput="calcUpd(\'pavEpesèSab\',this.value)" style="background:var(--white);border:1px solid var(--line);">')
+      + fieldHtml('Epesè Kouch Gravye (cm)','<input type="text" inputmode="decimal" value="'+calcState.pavEpesèGravye+'" name="cf_pavEpesèGravye" oninput="calcUpd(\'pavEpesèGravye\',this.value)" style="background:var(--white);border:1px solid var(--line);">')
+      + '</div>'
+      + '<div style="margin-top:8px;">'+fieldHtml(t('calc_petGaspiyaj'),'<input type="text" inputmode="decimal" value="'+calcState.pavPet+'" name="cf_pavPet" oninput="calcUpd(\'pavPet\',this.value)" style="background:var(--white);border:1px solid var(--line);">')+'</div>'
+      + resultBox([['Sifas Total', fmt(pvc.aire)+' m²'],['Sab Nesesè', fmt(pvc.volSab)+' m³'],['Gravye Nesesè', fmt(pvc.volGravye)+' m³']], 'Pave Nesesè', fmt(pvc.paveKantite))
+      + destRow(optsPav, 'destPavSel', 'calcState.destPav=Number(this.value)', 'applyPavaj()')
+      + '<p class="mono" style="font-size:9px;color:var(--muted);margin-top:8px;">Sèvi pou tras/lakou, papòt, oswa twotwa. Ogmante % pèt si desen an gen anpil koupe.</p>';
+  } else if(calcTab==='kofraj'){
+    var optsKof = p.phases.map(function(ph,i){ return '<option value="'+i+'" '+(i===calcState.destKof?'selected':'')+'>'+esc(ph.label)+'</option>'; }).join('');
+    var kofLabels = {poto:['Seksyon Laje (m)','Seksyon Epesè (m)','Wotè Poto (m)'], poutre:['Longè Poutre (m)','Laje Poutre (m)','Wotè Poutre (m)'], semel:['Longè Semèl (m)','Laje Semèl (m)','Wotè Semèl (m)'], dal:['Longè Dal (m)','Laje Dal (m)','Epesè Dal (m)'], mir:['Longè Mi (m)','(pa itilize)','Wotè Mi (m)']};
+    var kl = kofLabels[calcState.kofType] || kofLabels.poto;
+    body = '<p style="font-size:11px;font-weight:600;text-transform:uppercase;color:var(--muted);margin:0 0 6px;">Tip Eleman</p>'
+      + '<div style="display:flex;gap:6px;flex-wrap:wrap;">'
+        + '<button class="chip'+(calcState.kofType==='poto'?' active':'')+'" onclick="calcUpd(\'kofType\',\'poto\')">Poto</button>'
+        + '<button class="chip'+(calcState.kofType==='poutre'?' active':'')+'" onclick="calcUpd(\'kofType\',\'poutre\')">Poutre</button>'
+        + '<button class="chip'+(calcState.kofType==='semel'?' active':'')+'" onclick="calcUpd(\'kofType\',\'semel\')">Semèl</button>'
+        + '<button class="chip'+(calcState.kofType==='dal'?' active':'')+'" onclick="calcUpd(\'kofType\',\'dal\')">Dal (rebò)</button>'
+        + '<button class="chip'+(calcState.kofType==='mir'?' active':'')+'" onclick="calcUpd(\'kofType\',\'mir\')">Mi Soutènman</button>'
+      + '</div>'
+      + '<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-top:10px;">'
+      + fieldHtml(kl[0],'<input type="text" inputmode="decimal" value="'+calcState.kofLonge+'" name="cf_kofLonge" oninput="calcUpd(\'kofLonge\',this.value)" style="background:var(--white);border:1px solid var(--line);">')
+      + (calcState.kofType==='mir' ? '' : fieldHtml(kl[1],'<input type="text" inputmode="decimal" value="'+calcState.kofLaje+'" name="cf_kofLaje" oninput="calcUpd(\'kofLaje\',this.value)" style="background:var(--white);border:1px solid var(--line);">'))
+      + fieldHtml(kl[2],'<input type="text" inputmode="decimal" value="'+calcState.kofWote+'" name="cf_kofWote" oninput="calcUpd(\'kofWote\',this.value)" style="background:var(--white);border:1px solid var(--line);">')
+      + '</div>'
+      + '<div style="margin-top:8px;">'+fieldHtml(t('calc_petGaspiyaj'),'<input type="text" inputmode="decimal" value="'+calcState.kofPet+'" name="cf_kofPet" oninput="calcUpd(\'kofPet\',this.value)" style="background:var(--white);border:1px solid var(--line);">')+'</div>'
+      + resultBox([['Sifas Kalkile', fmt(kc.sifas)+' m²'],['Sifas ak Pèt', fmt(kc.sifasAvekPet)+' m²'],['An pye kare', fmt(kc.sifasFt2)+' pye²']], 'Fèy Kontreplake (4×8 pye)', fmt(kc.kantiteFèy))
+      + resultBox([], 'Wo — Planch 1"×12" (alt.)', fmt(kc.kantitePlanch1x12)+' pye lineyè')
+      + destRow(optsKof, 'destKofSel', 'calcState.destKof=Number(this.value)', 'applyKofraj()')
+      + '<p class="mono" style="font-size:9px;color:var(--muted);margin-top:8px;">Kalkil sifas kontak beton/kofraj sèlman — pa gen etansonaj (poto etaye) ladan. Chwazi youn nan de opsyon (fèy kontreplake OSWA planch) selon sa w gen disponib.</p>';
   }
 
   return '<div class="modal-backdrop no-print" onclick="if(event.target===this)toggleCalc(false)">'
@@ -5292,6 +5575,102 @@ function applyChapant(){ if(blockIfReadOnly()) return;
     ['Poto Etè (sipò tanporè)', fmt(kantitePoto)],
     ['Plwaywoud (fèy 4x8 pye)', fmt(kantiteFèy)],
     ['Klou '+(calcState.chapKlouGwose||''), fmt(klouLib)+' lib']
+  ]);
+  S.showCalc=false; render(); scheduleSave();
+}
+function applyEskalye(){ if(blockIfReadOnly()) return;
+  var d=calcState.destEsk; S.active=d;
+  var ec = computeEskalye();
+  var label = 'Eskalye Beton ('+fmt(ec.nMach)+' mach, wotè '+fmt(calcState.eskWoteTotal)+' m) — kalkile';
+  S.current.phases[d].items.push({id:nid(), d:label, u:'m³', q:ec.volTotal, pm:0, pmo:0});
+  S.current.phases[d].items.push({id:nid(), d:'Siman pou Eskalye ('+fmt(ec.cimentSak)+' sak)', u:'sak', q:ec.cimentSak, pm:0, pmo:0});
+  logCalcEntry('eskalye','Eskalye',d,[
+    ['Wotè total', fmt(calcState.eskWoteTotal)+' m'],
+    ['Kantite mach', fmt(ec.nMach)],
+    ['Kontrmach reyèl', fmt(ec.kontrmachReel)+' cm'],
+    ['Jiwon', fmt(ec.jiwonCm)+' cm'],
+    ['Laje eskalye', fmt(ec.lajeM)+' m'],
+    ['Volim total beton', fmt(ec.volTotal)+' m³'],
+    [t('calc_ciman'), fmt(ec.cimentKg)+' kg ('+fmt(ec.cimentSak)+' sak)'],
+    [t('calc_sab'), fmt(ec.sab)+' m³'],
+    [t('calc_gravye'), fmt(ec.gravye)+' m³']
+  ]);
+  S.showCalc=false; render(); scheduleSave();
+}
+function applyMir(){ if(blockIfReadOnly()) return;
+  var d=calcState.destMir; S.active=d;
+  var mc = computeMir();
+  var label = 'Mi Soutènman ('+fmt(mc.longeM)+'×'+fmt(mc.woteM)+' m) — kalkile';
+  S.current.phases[d].items.push({id:nid(), d:label, u:'m³', q:mc.volTotal, pm:0, pmo:0});
+  S.current.phases[d].items.push({id:nid(), d:'Siman pou Mi Soutènman ('+fmt(mc.cimentSak)+' sak)', u:'sak', q:mc.cimentSak, pm:0, pmo:0});
+  var rows = [
+    ['Dimansyon', fmt(mc.longeM)+' m × '+fmt(mc.woteM)+' m'],
+    ['Epesè baz/tèt', fmt(calcState.mirEpesèBaz)+'/'+fmt(calcState.mirEpesèTèt)+' cm'],
+    ['Volim beton', fmt(mc.volTotal)+' m³'],
+    [t('calc_ciman'), fmt(mc.cimentKg)+' kg ('+fmt(mc.cimentSak)+' sak)'],
+    [t('calc_sab'), fmt(mc.sab)+' m³'],
+    [t('calc_gravye'), fmt(mc.gravye)+' m³']
+  ];
+  if(mc.feOn){
+    S.current.phases[d].items.push({id:nid(), d:'Fè '+calcState.mirFeDyamet+' (Mi Soutènman)', u:'pyès', q:mc.barsNeeded, pm:0, pmo:0});
+    rows.push(['Fè vètikal', fmt(mc.nBar)+' pozisyon, '+fmt(mc.longèParBar)+' m/bar']);
+    rows.push(['Bar komèsyal nesesè', fmt(mc.barsNeeded)]);
+    rows.push(['Pwa fè total', fmt(mc.weightLb)+' lbs']);
+  }
+  logCalcEntry('mir','Mi Soutènman',d,rows);
+  S.showCalc=false; render(); scheduleSave();
+}
+function applyFosSeptik(){ if(blockIfReadOnly()) return;
+  var d=calcState.destFs; S.active=d;
+  var fc = computeFosSeptik();
+  var label = 'Fòs Septik ('+fmt(fc.longeM)+'×'+fmt(fc.lajeM)+'×'+fmt(fc.woteM)+' m) — kalkile';
+  S.current.phases[d].items.push({id:nid(), d:label, u:'m³', q:fc.volReyèl, pm:0, pmo:0});
+  S.current.phases[d].items.push({id:nid(), d:'Siman pou Dal Fòs Septik ('+fmt(fc.cimentSak)+' sak)', u:'sak', q:fc.cimentSak, pm:0, pmo:0});
+  var rows = [
+    ['Kantite moun', fmt(fc.moun)],
+    ['Kapasite rekòmande', fmt(fc.kapasiteRekòmandeL)+' L ('+fmt(fc.kapasiteRekòmandeM3)+' m³)'],
+    ['Dimansyon reyèl', fmt(fc.longeM)+'×'+fmt(fc.lajeM)+'×'+fmt(fc.woteM)+' m'],
+    ['Volim reyèl', fmt(fc.volReyèl)+' m³'],
+    ['Volim dal (anba+kouvèti)', fmt(fc.volDal)+' m³'],
+    [t('calc_ciman'), fmt(fc.cimentKg)+' kg ('+fmt(fc.cimentSak)+' sak)'],
+    [t('calc_sab'), fmt(fc.sab)+' m³'],
+    [t('calc_gravye'), fmt(fc.gravye)+' m³']
+  ];
+  if(fc.miOn){
+    S.current.phases[d].items.push({id:nid(), d:'Blòk pou Mi Fòs Septik', u:'pyès', q:fc.blokKantite, pm:0, pmo:0});
+    rows.push(['Sifas mi', fmt(fc.aireMi)+' m²']);
+    rows.push(['Blòk nesesè', fmt(fc.blokKantite)]);
+  }
+  logCalcEntry('fosSeptik','Fòs Septik',d,rows);
+  S.showCalc=false; render(); scheduleSave();
+}
+function applyPavaj(){ if(blockIfReadOnly()) return;
+  var d=calcState.destPav; S.active=d;
+  var pvc = computePavaj();
+  S.current.phases[d].items.push({id:nid(), d:'Pave ('+fmt(calcState.pavPaveL)+'×'+fmt(calcState.pavPaveW)+' m) — kalkile', u:'pyès', q:pvc.paveKantite, pm:0, pmo:0});
+  if(pvc.volSab>0) S.current.phases[d].items.push({id:nid(), d:'Sab pou Baz Pavaj', u:'m³', q:pvc.volSab, pm:0, pmo:0});
+  if(pvc.volGravye>0) S.current.phases[d].items.push({id:nid(), d:'Gravye pou Baz Pavaj', u:'m³', q:pvc.volGravye, pm:0, pmo:0});
+  logCalcEntry('pavaj','Pavaj',d,[
+    ['Dimansyon', fmt(pvc.longeM)+' × '+fmt(pvc.lajeM)+' m'],
+    ['Sifas total', fmt(pvc.aire)+' m²'],
+    ['Gwosè pave', fmt(calcState.pavPaveL)+'×'+fmt(calcState.pavPaveW)+' m'],
+    ['Pave nesesè', fmt(pvc.paveKantite)],
+    ['Sab (baz)', fmt(pvc.volSab)+' m³'],
+    ['Gravye (baz)', fmt(pvc.volGravye)+' m³']
+  ]);
+  S.showCalc=false; render(); scheduleSave();
+}
+function applyKofraj(){ if(blockIfReadOnly()) return;
+  var d=calcState.destKof; S.active=d;
+  var kc = computeKofraj();
+  var typeLabels = {poto:'Poto', poutre:'Poutre', semel:'Semèl', dal:'Dal', mir:'Mi Soutènman'};
+  S.current.phases[d].items.push({id:nid(), d:'Kofraj (Kontreplake) pou '+(typeLabels[kc.type]||kc.type)+' — kalkile', u:'fèy', q:kc.kantiteFèy, pm:0, pmo:0});
+  logCalcEntry('kofraj','Kofraj',d,[
+    ['Tip eleman', typeLabels[kc.type]||kc.type],
+    ['Sifas kalkile', fmt(kc.sifas)+' m²'],
+    ['Sifas ak pèt', fmt(kc.sifasAvekPet)+' m²'],
+    ['Fèy kontreplake (4×8 pye)', fmt(kc.kantiteFèy)],
+    ['Alt: Planch 1"×12"', fmt(kc.kantitePlanch1x12)+' pye lineyè']
   ]);
   S.showCalc=false; render(); scheduleSave();
 }
