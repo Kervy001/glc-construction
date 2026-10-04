@@ -363,10 +363,26 @@ var CONCRETE_TYPES = [
   {key:'arme300', label:'Beton Ame lejè - Lento/Chenn (300 kg/m³)', ciment:300, sab:0.45, gravye:0.78, dloL:155},
   {key:'arme350', label:'Beton Ame - Semèl/Poto/Chenn (350 kg/m³)', ciment:350, sab:0.42, gravye:0.75, dloL:175},
   {key:'dalle', label:'Beton Dal / Planche (400 kg/m³)', ciment:400, sab:0.38, gravye:0.70, dloL:190},
-  {key:'mortier_mason', label:'Mòtye Mason pou Blòk (dosaj 1:4)', ciment:300, sab:1.00, gravye:0, dloL:180},
-  {key:'mortier_krepi', label:'Mòtye Krepisaj / Anduit (dosaj 1:3)', ciment:350, sab:0.90, gravye:0, dloL:200},
+  {key:'mortier_mason', label:'Mòtye Mason pou Blòk (dosaj 1:4)', ciment:350, sab:1.00, gravye:0, dloL:180},
+  {key:'mortier_krepi', label:'Mòtye Krepisaj / Anduit (dosaj 1:3)', ciment:420, sab:0.90, gravye:0, dloL:200},
   {key:'chape', label:'Chap Planche (dosaj 1:3)', ciment:400, sab:0.85, gravye:0, dloL:200}
 ];
+function spliceCount(L, bar, lap){
+  // Konbyen jwenti (rekouvreman) yon bar kontinyèl ki long L bezwen lè bar komèsyal la long "bar"
+  L=Number(L)||0; bar=Number(bar)||0; lap=Number(lap)||0;
+  if(!(bar>0) || L<=bar) return 0;
+  var step = bar-lap;
+  if(step<=0) return Math.max(0, Math.ceil(L/bar)-1);
+  return Math.max(0, Math.ceil((L-lap)/step)-1);
+}
+function r2(x){ return Math.round((Number(x)||0)*100)/100; }
+function pushMateryoBeton(d, tag, c){
+  var arr = S.current.phases[d].items, sk = Number(calcState.sakKg)||45;
+  arr.push({id:nid(), d:'Siman ('+sk+'kg/sak) — '+tag, u:'sak', q:c.sak, pm:0, pmo:0});
+  if(c.sab>0) arr.push({id:nid(), d:'Sab — '+tag, u:'m³', q:r2(c.sab), pm:0, pmo:0});
+  if(c.gravye>0) arr.push({id:nid(), d:'Gravye — '+tag, u:'m³', q:r2(c.gravye), pm:0, pmo:0});
+  if(c.dlo>0) arr.push({id:nid(), d:'Dlo — '+tag, u:'litè', q:Math.round(c.dlo), pm:0, pmo:0});
+}
 function findConcrete(key){ return CONCRETE_TYPES.find(function(c){return c.key===key;}) || CONCRETE_TYPES[0]; }
 var DEFAULT_TERMS = "Devis valab pou peryòd endike anwo a. Tout kantite ki depase sa ki prevwa a ap fakti selon menm pri inite yo. Yon planin travay ap etabli anvan kòmansman chantye a. Kliyan an dwe respekte echeansye peman ki etabli. GLC Construction HT garanti kalite egzekisyon travay yo selon nòm konstriksyon an vigè.";
 var STATUT_META = {
@@ -455,6 +471,8 @@ var I18N = {
     calc_woteMi:'Wotè mi (m)',
     calc_ouveti:'Ouvèti (pòt/fenèt m²)',
     calc_petGaspiyaj:'% Pèt / gaspiyaj',
+    calc_mortyeM2:'Mòtye pou jwenti (m³/m²)',
+    calc_mortyeBlok:'Mòtye blòk',
     calc_pwaTotalFe:'Pwa total fè (lbs)',
     calc_longeBarPye:'Longè bar (pye)',
     calc_pwaPaPye:'Pwa pa pye (',
@@ -706,6 +724,8 @@ var I18N = {
     calc_woteMi:'Hauteur du mur (m)',
     calc_ouveti:'Ouvertures (porte/fenêtre m²)',
     calc_petGaspiyaj:'% Perte / gaspillage',
+    calc_mortyeM2:'Mortier de joints (m³/m²)',
+    calc_mortyeBlok:'Mortier blocs',
     calc_pwaTotalFe:'Poids total du fer (lbs)',
     calc_longeBarPye:'Longueur de barre (pieds)',
     calc_pwaPaPye:'Poids par pied (',
@@ -957,6 +977,8 @@ var I18N = {
     calc_woteMi:'Wall height (m)',
     calc_ouveti:'Openings (door/window m²)',
     calc_petGaspiyaj:'% Loss / waste',
+    calc_mortyeM2:'Joint mortar (m³/m²)',
+    calc_mortyeBlok:'Block mortar',
     calc_pwaTotalFe:'Total rebar weight (lbs)',
     calc_longeBarPye:'Bar length (feet)',
     calc_pwaPaPye:'Weight per foot (',
@@ -3841,7 +3863,7 @@ function shareWhatsapp(){
 
 // ================= CALC MODAL (Blòk / Fè / Beton / Volim) =================
 var calcTab = 'beton';
-var calcState = { modeExpert:false, normeCalcul:'SIMPLIFIE', uniteBar:'m', longe:'', wote:'', ouveti:'', blokM2:12.5, pet:5,
+var calcState = { modeExpert:false, normeCalcul:'SIMPLIFIE', uniteBar:'m', longe:'', wote:'', ouveti:'', blokM2:12.5, pet:5, blokMortier:0.015,
   pwaLbs:'', dyamet:'1/2" (#4)', barLonge:20,
   betonM3:'', betonType:'arme350', betonPet:5, sakKg:45,
   betonEntries:[],
@@ -3951,6 +3973,7 @@ function computePoto(){
   function potoGrCalc(diam, nb){
     nb = Number(nb)||0;
     var devLong = potoLongèParBar + (potoKrochetOn ? potoKrochetM(diam) : 0);
+    devLong = devLong + spliceCount(devLong, potoBarLongeM, lapAutoCm(diam)/100)*(lapAutoCm(diam)/100);
     var pye = devLong*M_TO_FT*nb*pKantite;
     var barNeeded = pye>0 ? Math.ceil(pye/potoBarLongeFt) : 0;
     var w = REBAR[diam] || REBAR['1/2" (#4)'];
@@ -4045,8 +4068,8 @@ function computeSemel(){
 
   // Si yon bar depase longè komèsyal la, li bezwen jwenti — ajoute rekouvreman pou chak jwenti
   // (Rekouvreman sa a se yon konsèp ki aplike sèlman pou semèl filante, kote bar yo kontinyèl sou tout longè a)
-  var spliceX = (forme==='filante' && devLongX>barLongeM && barLongeM>0) ? Math.ceil(devLongX/barLongeM)-1 : 0;
-  var spliceY = (forme==='filante' && devLongY>barLongeM && barLongeM>0) ? Math.ceil(devLongY/barLongeM)-1 : 0;
+  var spliceX = (forme==='filante') ? spliceCount(devLongX, barLongeM, lapXm) : 0;
+  var spliceY = (forme==='filante') ? spliceCount(devLongY, barLongeM, lapYm) : 0;
   devLongX = devLongX + spliceX*lapXm;
   devLongY = devLongY + spliceY*lapYm;
 
@@ -4282,7 +4305,7 @@ function computeEskalye(){
   var ct = findConcrete(calcState.eskBetonType);
   var pet = 1+(Number(calcState.eskBetonPet)||0)/100;
   var cimentKg = volTotal*ct.ciment*pet;
-  var cimentSak = Math.ceil(cimentKg/45);
+  var cimentSak = Math.ceil(cimentKg/(Number(calcState.sakKg)||45));
   var sab = volTotal*ct.sab*pet;
   var gravye = volTotal*ct.gravye*pet;
   var dlo = volTotal*ct.dloL*pet;
@@ -4304,7 +4327,7 @@ function computeEskalye(){
 
   var qtyPrensipal = Math.max(1, Math.floor(lajeEffectif*100/espasmanCm)+1);
   var longèEfektifParBarPrensipal = longèRanpanFerayTotal + 2*krochetM;
-  var nSplicePrensipal = longèEfektifParBarPrensipal>barLongeM ? Math.ceil(longèEfektifParBarPrensipal/barLongeM)-1 : 0;
+  var nSplicePrensipal = spliceCount(longèEfektifParBarPrensipal, barLongeM, recouvrementM);
   var totalLongPrensipal = qtyPrensipal*(longèEfektifParBarPrensipal+nSplicePrensipal*recouvrementM);
   var barsNeededPrensipal = Math.ceil(totalLongPrensipal/barLongeM);
   var lbPerPyePrensipal = REBAR[calcState.eskFeDiamPrensipal] || REBAR['1/2" (#4)'];
@@ -4312,7 +4335,7 @@ function computeEskalye(){
 
   var qtyDistribisyon = Math.max(1, Math.floor(longèRanpanFerayTotal*100/espasmanCm)+1);
   var longèParBarDistribisyon = lajeEffectif;
-  var nSpliceDistribisyon = longèParBarDistribisyon>barLongeM ? Math.ceil(longèParBarDistribisyon/barLongeM)-1 : 0;
+  var nSpliceDistribisyon = spliceCount(longèParBarDistribisyon, barLongeM, recouvrementM);
   var totalLongDistribisyon = qtyDistribisyon*(longèParBarDistribisyon+nSpliceDistribisyon*recouvrementM);
   var barsNeededDistribisyon = Math.ceil(totalLongDistribisyon/barLongeM);
   var lbPerPyeDistribisyon = REBAR[calcState.eskFeDiamDistribisyon] || REBAR['3/8" (#3)'];
@@ -4385,7 +4408,7 @@ function computeMir(){
   var ct = findConcrete(calcState.mirBetonType);
   var pet = 1+(Number(calcState.mirBetonPet)||0)/100;
   var cimentKg = volTotal*ct.ciment*pet;
-  var cimentSak = Math.ceil(cimentKg/45);
+  var cimentSak = Math.ceil(cimentKg/(Number(calcState.sakKg)||45));
   var sab = volTotal*ct.sab*pet;
   var gravye = volTotal*ct.gravye*pet;
   var dlo = volTotal*ct.dloL*pet;
@@ -4423,7 +4446,7 @@ function computeFosSeptik(){
   var epesèDalM = 0.10;
   var volDal = longeM*lajeM*epesèDalM*2;
   var cimentKg = volDal*ct.ciment*pet;
-  var cimentSak = Math.ceil(cimentKg/45);
+  var cimentSak = Math.ceil(cimentKg/(Number(calcState.sakKg)||45));
   var sab = volDal*ct.sab*pet;
   var gravye = volDal*ct.gravye*pet;
   var dlo = volDal*ct.dloL*pet;
@@ -4433,11 +4456,12 @@ function computeFosSeptik(){
   var aireMi = perimèt*woteM;
   var blokM2 = Number(calcState.fsBlokM2)||12.5;
   var blokKantite = Math.ceil(aireMi*blokM2);
+  var fsMort = blokMortar(aireMi);
   return {
     moun:moun, kapasiteRekòmandeL:kapasiteRekòmandeL, kapasiteRekòmandeM3:kapasiteRekòmandeM3,
     longeM:longeM, lajeM:lajeM, woteM:woteM, volReyèl:volReyèl,
     volDal:volDal, cimentKg:cimentKg, cimentSak:cimentSak, sab:sab, gravye:gravye, dlo:dlo,
-    miOn:miOn, perimèt:perimèt, aireMi:aireMi, blokKantite:blokKantite
+    miOn:miOn, perimèt:perimèt, aireMi:aireMi, blokKantite:blokKantite, mort:fsMort
   };
 }
 // ---- PAVAJ (paving) ----
@@ -4611,9 +4635,9 @@ function computeDalle(){
     var nY = espYm>0 ? Math.ceil((longeM-2*kouv)/espYm)+1 : 0;
     var devY = Math.max(0, lajeM - 2*kouv);
     var barLenX = Number(longComX)||6, barLenY = Number(longComY)||6;
-    var spliceX = devX>barLenX && barLenX>0 ? Math.ceil(devX/barLenX)-1 : 0;
-    var spliceY = devY>barLenY && barLenY>0 ? Math.ceil(devY/barLenY)-1 : 0;
     var lapXm = lapAutoCm(diamX)/100, lapYm = lapAutoCm(diamY)/100;
+    var spliceX = spliceCount(devX, barLenX, lapXm);
+    var spliceY = spliceCount(devY, barLenY, lapYm);
     devX = devX + spliceX*lapXm;
     devY = devY + spliceY*lapYm;
     var totalLongX = nX*devX, totalLongY = nY*devY;
@@ -4669,8 +4693,8 @@ function computePoutre(){
   function poutGrCalc(diam, nb){
     nb = Number(nb)||0;
     var devLong = poutLongeM + poutAnkrajM;
-    var splice = (devLong>poutBarLongeM && poutBarLongeM>0) ? Math.ceil(devLong/poutBarLongeM)-1 : 0;
     var lapM = lapAutoCm(diam)/100;
+    var splice = spliceCount(devLong, poutBarLongeM, lapM);
     devLong = devLong + splice*lapM;
     var pye = devLong*M_TO_FT*nb*poutKantite;
     var barNeeded = pye>0 ? Math.ceil(pye/poutBarLongeFt) : 0;
@@ -4722,9 +4746,9 @@ function computeRadier(){
     var nY = espYm>0 ? Math.ceil((longeM-2*kouv)/espYm)+1 : 0;
     var devY = Math.max(0, lajeM - 2*kouv);
     var barLenX = Number(longComX)||6, barLenY = Number(longComY)||6;
-    var spliceX = devX>barLenX && barLenX>0 ? Math.ceil(devX/barLenX)-1 : 0;
-    var spliceY = devY>barLenY && barLenY>0 ? Math.ceil(devY/barLenY)-1 : 0;
     var lapXm = lapAutoCm(diamX)/100, lapYm = lapAutoCm(diamY)/100;
+    var spliceX = spliceCount(devX, barLenX, lapXm);
+    var spliceY = spliceCount(devY, barLenY, lapYm);
     devX = devX + spliceX*lapXm;
     devY = devY + spliceY*lapYm;
     var totalLongX = nX*devX, totalLongY = nY*devY;
@@ -4777,8 +4801,8 @@ function computeLongrines(){
   function lGrCalc(diam, nb){
     nb = Number(nb)||0;
     var devLong = lLongeM + lAnkrajM;
-    var splice = (devLong>lBarLongeM && lBarLongeM>0) ? Math.ceil(devLong/lBarLongeM)-1 : 0;
     var lapM = lapAutoCm(diam)/100;
+    var splice = spliceCount(devLong, lBarLongeM, lapM);
     devLong = devLong + splice*lapM;
     var pye = devLong*M_TO_FT*nb*lKantite;
     var barNeeded = pye>0 ? Math.ceil(pye/lBarLongeFt) : 0;
@@ -4864,6 +4888,7 @@ function calcModal(p){
   var aire = Math.max(0, (Number(calcState.longe)||0)*(Number(calcState.wote)||0) - (Number(calcState.ouveti)||0));
   var blokBrut = aire * (Number(calcState.blokM2)||0);
   var blokFinal = Math.ceil(blokBrut * (1+(Number(calcState.pet)||0)/100));
+  var blokMort = blokMortar(aire);
 
   var lbPerPye = REBAR[calcState.dyamet] || REBAR['1/2" (#4)'];
   var pyeTotal = (Number(calcState.pwaLbs)||0)/lbPerPye;
@@ -4921,7 +4946,7 @@ function calcModal(p){
   var btuBase = btuAire*btuFakte;
   var btuMounExtra = Math.max(0,(Number(calcState.btuMoun)||0)-2)*600;
   var btuTotal = btuBase+btuMounExtra;
-  var BTU_UNITS = [9000,12000,18000,24000,28000,36000,48000,60000];
+  var BTU_UNITS = [9000,12000,18000,24000,30000,36000,48000,60000];
   var btuSuggested = BTU_UNITS.find(function(u){ return u>=btuTotal; }) || BTU_UNITS[BTU_UNITS.length-1];
 
   // ---- PENTI (paint) ----
@@ -4945,7 +4970,7 @@ function calcModal(p){
   // ---- KARELAJ (tiling) ----
   var karelSifas = Number(calcState.karelSifas)||0;
   var karelGwoseStr = calcState.karelGwose==='lòt' ? ((calcState.karelGwoseCustom||'30x30')) : calcState.karelGwose;
-  var karelDims = karelGwoseStr.split('x').map(Number);
+  var karelDims = String(karelGwoseStr).split(/[x×X*]/).map(Number);
   var karelSifasKaro = ((karelDims[0]||30)/100)*((karelDims[1]||30)/100);
   var karelPet = 1+(Number(calcState.karelPet)||0)/100;
   var karelKantite = karelSifasKaro>0 ? Math.ceil((karelSifas*karelPet)/karelSifasKaro) : 0;
@@ -5001,8 +5026,11 @@ function calcModal(p){
       + fieldHtml(t('calc_ouveti'),'<input type="text" inputmode="decimal" value="'+calcState.ouveti+'" name="cf_ouveti" oninput="calcUpd(\'ouveti\',this.value)" style="background:var(--white);border:1px solid var(--line);">')
       + fieldHtml(t('calc_blokPaM2'),'<input type="text" inputmode="decimal" value="'+calcState.blokM2+'" name="cf_blokM2" oninput="calcUpd(\'blokM2\',this.value)" style="background:var(--white);border:1px solid var(--line);">')
       + '</div>'
-      + '<div style="margin-top:8px;">'+fieldHtml(t('calc_petGaspiyaj'),'<input type="text" inputmode="decimal" value="'+calcState.pet+'" name="cf_pet" oninput="calcUpd(\'pet\',this.value)" style="background:var(--white);border:1px solid var(--line);">')+'</div>'
-      + resultBox([[t('calc_sifasMi'), fmt(aire)+' m²']], t('calc_blokPouAchte'), fmt(blokFinal))
+      + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px;">'
+      + fieldHtml(t('calc_petGaspiyaj'),'<input type="text" inputmode="decimal" value="'+calcState.pet+'" name="cf_pet" oninput="calcUpd(\'pet\',this.value)" style="background:var(--white);border:1px solid var(--line);">')
+      + fieldHtml(t('calc_mortyeM2'),'<input type="text" inputmode="decimal" value="'+calcState.blokMortier+'" name="cf_blokMortier" oninput="calcUpd(\'blokMortier\',this.value)" style="background:var(--white);border:1px solid var(--line);">')
+      + '</div>'
+      + resultBox([[t('calc_sifasMi'), fmt(aire)+' m²'],[t('calc_mortyeBlok'), fmt(blokMort.sak)+' sak · '+fmt(blokMort.sab)+' m³ sab']], t('calc_blokPouAchte'), fmt(blokFinal))
       + proPanel([
           {label:'Sifas Mi Net', formula:'A = (Longè × Wotè) - Ouvèti', calc:'A = ('+fmt(calcState.longe)+' × '+fmt(calcState.wote)+') - '+fmt(calcState.ouveti), result:fmt(aire)+' m²'},
           {label:'Blòk Brit', formula:'nb = A × Blòk/m²', calc:'nb = '+fmt(aire)+' × '+fmt(calcState.blokM2), result:fmt(blokBrut)+' blòk'},
@@ -6133,10 +6161,21 @@ function calcUpd(field,val){
   calcRenderTimer = setTimeout(function(){ calcRenderTimer=null; render(); }, 350);
 }
 function setCalcTab(t){ calcTab=t; render(); }
+function blokMortar(aire){
+  var m3 = (Number(aire)||0)*(Number(calcState.blokMortier)||0);
+  var ct = findConcrete('mortier_mason');
+  var sk = Number(calcState.sakKg)||45;
+  return {m3:m3, sak:Math.ceil(m3*ct.ciment/sk), sab:m3*ct.sab};
+}
 function applyBlok(qty){ if(blockIfReadOnly()) return;
   var d=calcState.destBlok; S.active=d;
   var aireBlok = Math.max(0,(Number(calcState.longe)||0)*(Number(calcState.wote)||0)-(Number(calcState.ouveti)||0));
-  S.current.phases[d].items.push({id:nid(),d:'Blòk beton (kalkile)',u:'pyès',q:qty,pm:75,pmo:20});
+  S.current.phases[d].items.push({id:nid(),d:'Blòk beton (kalkile)',u:'pyès',q:qty,pm:75,pmo:Math.round(qty*20)});
+  var bm = blokMortar(aireBlok);
+  if(bm.m3>0){
+    S.current.phases[d].items.push({id:nid(), d:'Siman ('+(Number(calcState.sakKg)||45)+'kg/sak) — Mòtye Blòk', u:'sak', q:bm.sak, pm:0, pmo:0});
+    S.current.phases[d].items.push({id:nid(), d:'Sab — Mòtye Blòk', u:'m³', q:r2(bm.sab), pm:0, pmo:0});
+  }
   logCalcEntry('blok','Blòk',d,[
     ['Longè mi total', fmt(calcState.longe)+' ml'],
     ['Wotè mi', fmt(calcState.wote)+' m'],
@@ -6144,6 +6183,7 @@ function applyBlok(qty){ if(blockIfReadOnly()) return;
     ['Blòk pa m²', fmt(calcState.blokM2)],
     ['% Pèt', fmt(calcState.pet)+'%'],
     ['Sifas mi', fmt(aireBlok)+' m²'],
+    ['Mòtye jwenti', fmt(bm.m3)+' m³ → '+fmt(bm.sak)+' sak siman + '+fmt(bm.sab)+' m³ sab'],
     ['Blòk pou achte', fmt(qty)]
   ]);
   S.showCalc=false; render(); scheduleSave();
@@ -6202,7 +6242,7 @@ function applyPoto(){ if(blockIfReadOnly()) return;
     ['Ciman', fmt(pc.potoCimentSak)+' sak'],
     ['Fè prensipal', pc.potoGroups.map(function(g){ return g.nb+'× '+g.diam; }).join(' + ')],
     ['Longè développée pa bar', fmt(pc.potoGroups[0].devLong)+' m'],
-    ['Crochet nan baz', pc.potoKrochetOn ? (fmt(pc.potoEtHookCm)+' cm') : 'Pa gen'],
+    ['Crochet nan baz', pc.potoKrochetOn ? (fmt(calcState.potoKrochetMode==='manuel' ? (Number(calcState.potoKrochetLonge)||0) : hookAutoCm(pc.potoGroups[0].diam))+' cm') : 'Pa gen'],
     ['Pwa Total Acier Prensipal', fmt(pc.potoWeightTotal-pc.potoEtriyeWeight)+' lbs'],
     ['Etriye', calcState.potoEtriyeDyamet+' · esp. '+fmt(calcState.potoEtriyeEspasman)+' cm · '+fmt(pc.potoQtyEtriye)+' pyès'],
     ['Longè komèsyal bar', fmt(pc.potoBarLongeM)+' m'],
@@ -6276,7 +6316,7 @@ function applyVol(volM3){ if(blockIfReadOnly()) return;
 function applyTol(qty){ if(blockIfReadOnly()) return;
   var d=calcState.destTol; S.active=d;
   var label = 'Tòl ('+calcState.tolLongePye+' pye) — kalkile';
-  S.current.phases[d].items.push({id:nid(), d:label, u:'fèy', q:qty, pm:600, pmo:150});
+  S.current.phases[d].items.push({id:nid(), d:label, u:'fèy', q:qty, pm:600, pmo:Math.round(qty*150)});
   logCalcEntry('tol','Tòl',d,[
     ['Longè twati', fmt(calcState.tolLonge)+' m'],
     ['Lajè twati', fmt(calcState.tolLaje)+' m'],
@@ -6299,8 +6339,8 @@ function applyBtu(unit){ if(blockIfReadOnly()) return;
 }
 function applyPenti(galonFinal, galonSous){ if(blockIfReadOnly()) return;
   var d=calcState.destPenti; S.active=d;
-  if(galonSous>0){ S.current.phases[d].items.push({id:nid(), d:'Penti sou-kouche / aprèt (galon)', u:'galon', q:galonSous, pm:900, pmo:150}); }
-  S.current.phases[d].items.push({id:nid(), d:'Penti final (galon)', u:'galon', q:galonFinal, pm:1400, pmo:150});
+  if(galonSous>0){ S.current.phases[d].items.push({id:nid(), d:'Penti sou-kouche / aprèt (galon)', u:'galon', q:galonSous, pm:900, pmo:Math.round(galonSous*150)}); }
+  S.current.phases[d].items.push({id:nid(), d:'Penti final (galon)', u:'galon', q:galonFinal, pm:1400, pmo:Math.round(galonFinal*150)});
   logCalcEntry('penti','Penti',d,[
     ['Longè mi total', fmt(calcState.pentiLonge)+' ml'],
     ['Wotè mi', fmt(calcState.pentiWote)+' m'],
@@ -6321,11 +6361,11 @@ function applyElektrik(){ if(blockIfReadOnly()) return;
   var pet = 1+(Number(calcState.elekPet)||0)/100;
   var longeFil = totalPwen * (Number(calcState.elekLongeMwayen)||6) * pet;
   var sikwi = Math.max(1, Math.ceil(totalPwen/(Number(calcState.elekPwenPaSikwi)||8)));
-  S.current.phases[d].items.push({id:nid(), d:'Pwen Limyè (enstale)', u:'pwen', q:elekPwen, pm:350, pmo:200});
-  S.current.phases[d].items.push({id:nid(), d:'Priz Kouran (enstale)', u:'priz', q:elekPriz, pm:400, pmo:200});
+  S.current.phases[d].items.push({id:nid(), d:'Pwen Limyè (enstale)', u:'pwen', q:elekPwen, pm:350, pmo:Math.round(elekPwen*200)});
+  S.current.phases[d].items.push({id:nid(), d:'Priz Kouran (enstale)', u:'priz', q:elekPriz, pm:400, pmo:Math.round(elekPriz*200)});
   S.current.phases[d].items.push({id:nid(), d:'Fil elektrik (kalkile)', u:'ml', q:Math.round(longeFil), pm:60, pmo:0});
-  S.current.phases[d].items.push({id:nid(), d:'Bwat deriviyon', u:'pyès', q:totalPwen, pm:150, pmo:50});
-  S.current.phases[d].items.push({id:nid(), d:'Disjonktè / Sikwi', u:'pyès', q:sikwi, pm:1200, pmo:150});
+  S.current.phases[d].items.push({id:nid(), d:'Bwat deriviyon', u:'pyès', q:totalPwen, pm:150, pmo:Math.round(totalPwen*50)});
+  S.current.phases[d].items.push({id:nid(), d:'Disjonktè / Sikwi', u:'pyès', q:sikwi, pm:1200, pmo:Math.round(sikwi*150)});
   S.current.phases[d].items.push({id:nid(), d:'Tablo Prensipal', u:'forfè', q:1, pm:8000, pmo:2500});
   logCalcEntry('elek','Elektrik',d,[
     ['Pwen Limyè', fmt(elekPwen)],
@@ -6344,7 +6384,7 @@ function applyKarelaj(){ if(blockIfReadOnly()) return;
   var d=calcState.destKarel; S.active=d;
   var sifas = Number(calcState.karelSifas)||0;
   var gwoseStr = calcState.karelGwose==='lòt' ? (calcState.karelGwoseCustom||'30x30') : calcState.karelGwose;
-  var dims = gwoseStr.split('x').map(Number);
+  var dims = String(gwoseStr).split(/[x×X*]/).map(Number);
   var sifasKaro = ((dims[0]||30)/100)*((dims[1]||30)/100);
   var pet = 1+(Number(calcState.karelPet)||0)/100;
   var kantite = sifasKaro>0 ? Math.ceil((sifas*pet)/sifasKaro) : 0;
@@ -6415,13 +6455,15 @@ function applyDal(){ if(blockIfReadOnly()) return;
 function applyRadier(){ if(blockIfReadOnly()) return;
   var d=calcState.destRadier; S.active=d;
   var rc = computeRadier();
-  S.current.phases[d].items.push({id:nid(), d:'Radier ('+fmt(rc.longeM)+'×'+fmt(rc.lajeM)+' m) — kalkile', u:'m³', q:rc.vol, pm:0, pmo:0});
-  S.current.phases[d].items.push({id:nid(), d:'Siman pou Radier ('+fmt(rc.cimentSak)+' sak)', u:'sak', q:rc.cimentSak, pm:0, pmo:0});
-  S.current.phases[d].items.push({id:nid(), d:'Sab pou Radier', u:'m³', q:rc.sab, pm:0, pmo:0});
-  S.current.phases[d].items.push({id:nid(), d:'Gravye pou Radier', u:'m³', q:rc.gravye, pm:0, pmo:0});
-  S.current.phases[d].items.push({id:nid(), d:'Fè Nap Anba ('+calcState.radierDiamX+'/'+calcState.radierDiamY+')', u:'pyès', q:rc.n1.barsNeededX+rc.n1.barsNeededY, pm:0, pmo:0});
-  if(rc.n2) S.current.phases[d].items.push({id:nid(), d:'Fè Nap Anwo ('+calcState.radierDiamX2+'/'+calcState.radierDiamY2+')', u:'pyès', q:rc.n2.barsNeededX+rc.n2.barsNeededY, pm:0, pmo:0});
-  S.current.phases[d].items.push({id:nid(), d:'Fil Ligati (Radier)', u:'m', q:rc.ligatiTotal, pm:0, pmo:0});
+  S.current.phases[d].items.push({id:nid(), d:'Radier ('+fmt(rc.longeM)+'×'+fmt(rc.lajeM)+' m) — kalkile', u:'m³', q:r2(rc.vol), pm:0, pmo:0});
+  pushMateryoBeton(d,'Radier',{sak:rc.cimentSak, sab:rc.sab, gravye:rc.gravye, dlo:rc.dlo});
+  S.current.phases[d].items.push({id:nid(), d:'Fè Nap Anba X '+calcState.radierDiamX+' (Radier)', u:'bar', q:rc.n1.barsNeededX, pm:0, pmo:0});
+  S.current.phases[d].items.push({id:nid(), d:'Fè Nap Anba Y '+calcState.radierDiamY+' (Radier)', u:'bar', q:rc.n1.barsNeededY, pm:0, pmo:0});
+  if(rc.n2){
+    S.current.phases[d].items.push({id:nid(), d:'Fè Nap Anwo X '+calcState.radierDiamX2+' (Radier)', u:'bar', q:rc.n2.barsNeededX, pm:0, pmo:0});
+    S.current.phases[d].items.push({id:nid(), d:'Fè Nap Anwo Y '+calcState.radierDiamY2+' (Radier)', u:'bar', q:rc.n2.barsNeededY, pm:0, pmo:0});
+  }
+  S.current.phases[d].items.push({id:nid(), d:'Fil Ligati (Radier)', u:'m', q:Math.ceil(rc.ligatiTotal), pm:0, pmo:0});
   var rows = [
     ['Dimansyon', fmt(rc.longeM)+' × '+fmt(rc.lajeM)+' × '+fmt(rc.epesM)+' m'],
     ['Volim beton', fmt(rc.vol)+' m³'],
@@ -6438,14 +6480,12 @@ function applyRadier(){ if(blockIfReadOnly()) return;
 function applyLongrines(){ if(blockIfReadOnly()) return;
   var d=calcState.destLongr; S.active=d;
   var lc = computeLongrines();
-  S.current.phases[d].items.push({id:nid(), d:'Longrine ('+fmt(calcState.longrLaje)+'×'+fmt(calcState.longrWote)+' cm, L='+fmt(calcState.longrLonge)+' m) — kalkile', u:'m³', q:lc.lVol, pm:0, pmo:0});
-  S.current.phases[d].items.push({id:nid(), d:'Siman pou Longrine ('+fmt(lc.lCimentSak)+' sak)', u:'sak', q:lc.lCimentSak, pm:0, pmo:0});
-  S.current.phases[d].items.push({id:nid(), d:'Sab pou Longrine', u:'m³', q:lc.lSab, pm:0, pmo:0});
-  S.current.phases[d].items.push({id:nid(), d:'Gravye pou Longrine', u:'m³', q:lc.lGravye, pm:0, pmo:0});
-  S.current.phases[d].items.push({id:nid(), d:'Fè Anwo '+calcState.longrDiamSup+' (Longrine)', u:'pyès', q:lc.lSup.barNeeded, pm:0, pmo:0});
-  S.current.phases[d].items.push({id:nid(), d:'Fè Anba '+calcState.longrDiamInf+' (Longrine)', u:'pyès', q:lc.lInf.barNeeded, pm:0, pmo:0});
-  S.current.phases[d].items.push({id:nid(), d:'Etriye '+calcState.longrEtriyeDyamet+' (Longrine)', u:'pyès', q:lc.lQtyEtriye, pm:0, pmo:0});
-  S.current.phases[d].items.push({id:nid(), d:'Fil Ligati (Longrine)', u:'m', q:lc.lLigatiTotal, pm:0, pmo:0});
+  S.current.phases[d].items.push({id:nid(), d:'Longrine ('+fmt(calcState.longrLaje)+'×'+fmt(calcState.longrWote)+' cm, L='+fmt(calcState.longrLonge)+' m) — kalkile', u:'m³', q:r2(lc.lVol), pm:0, pmo:0});
+  pushMateryoBeton(d,'Longrine',{sak:lc.lCimentSak, sab:lc.lSab, gravye:lc.lGravye, dlo:lc.lDlo});
+  S.current.phases[d].items.push({id:nid(), d:'Fè Anwo '+calcState.longrDiamSup+' ('+calcState.longrNbSup+' bar/longrine) — Longrine', u:'bar', q:lc.lSup.barNeeded, pm:0, pmo:0});
+  S.current.phases[d].items.push({id:nid(), d:'Fè Anba '+calcState.longrDiamInf+' ('+calcState.longrNbInf+' bar/longrine) — Longrine', u:'bar', q:lc.lInf.barNeeded, pm:0, pmo:0});
+  S.current.phases[d].items.push({id:nid(), d:'Fè Etriye '+calcState.longrEtriyeDyamet+' ('+lc.lQtyEtriye+' etriye) — Longrine', u:'bar', q:lc.lEtriyeBarNeeded, pm:0, pmo:0});
+  S.current.phases[d].items.push({id:nid(), d:'Fil Ligati (Longrine)', u:'m', q:Math.ceil(lc.lLigatiTotal), pm:0, pmo:0});
   logCalcEntry('longrines','Longrines',d,[
     ['Seksyon', fmt(calcState.longrLaje)+'×'+fmt(calcState.longrWote)+' cm'],
     ['Longè total', fmt(calcState.longrLonge)+' m × '+fmt(calcState.longrKantite)+' segman'],
@@ -6553,13 +6593,13 @@ function applyEskalye(){ if(blockIfReadOnly()) return;
   var eskTypeLabels = {dwat:'Dwat', L:'L', U:'U', balanse:'Balanse', elikoidal:'Elikoidal'};
   var tipLabel = eskTypeLabels[ec.type]||ec.type;
   var label = 'Eskalye Beton '+tipLabel+' ('+fmt(ec.nMachTotal)+' mach, wotè '+fmt(calcState.eskWoteTotal)+' m) — kalkile';
-  S.current.phases[d].items.push({id:nid(), d:label, u:'m³', q:ec.volTotal, pm:0, pmo:0});
-  S.current.phases[d].items.push({id:nid(), d:'Siman pou Eskalye ('+fmt(ec.cimentSak)+' sak)', u:'sak', q:ec.cimentSak, pm:0, pmo:0});
-  S.current.phases[d].items.push({id:nid(), d:'Fè Prensipal '+calcState.eskFeDiamPrensipal+' (Eskalye)', u:'pyès', q:ec.barsNeededPrensipal, pm:0, pmo:0});
-  S.current.phases[d].items.push({id:nid(), d:'Fè Distribisyon '+calcState.eskFeDiamDistribisyon+' (Eskalye)', u:'pyès', q:ec.barsNeededDistribisyon, pm:0, pmo:0});
-  S.current.phases[d].items.push({id:nid(), d:'Fil Ligati (Eskalye)', u:'m', q:ec.filLigatiTotal, pm:0, pmo:0});
-  S.current.phases[d].items.push({id:nid(), d:'Kofraj Anba (Eskalye)', u:'m²', q:ec.kofrajAnba, pm:0, pmo:0});
-  S.current.phases[d].items.push({id:nid(), d:'Kofraj Bò (Eskalye)', u:'m²', q:ec.kofrajBò, pm:0, pmo:0});
+  S.current.phases[d].items.push({id:nid(), d:label, u:'m³', q:r2(ec.volTotal), pm:0, pmo:0});
+  pushMateryoBeton(d,'Eskalye',{sak:ec.cimentSak, sab:ec.sab, gravye:ec.gravye, dlo:ec.dlo});
+  S.current.phases[d].items.push({id:nid(), d:'Fè Prensipal '+calcState.eskFeDiamPrensipal+' (Eskalye)', u:'bar', q:ec.barsNeededPrensipal, pm:0, pmo:0});
+  S.current.phases[d].items.push({id:nid(), d:'Fè Distribisyon '+calcState.eskFeDiamDistribisyon+' (Eskalye)', u:'bar', q:ec.barsNeededDistribisyon, pm:0, pmo:0});
+  S.current.phases[d].items.push({id:nid(), d:'Fil Ligati (Eskalye)', u:'m', q:Math.ceil(ec.filLigatiTotal), pm:0, pmo:0});
+  S.current.phases[d].items.push({id:nid(), d:'Kofraj Anba (Eskalye)', u:'m²', q:r2(ec.kofrajAnba), pm:0, pmo:0});
+  S.current.phases[d].items.push({id:nid(), d:'Kofraj Bò (Eskalye)', u:'m²', q:r2(ec.kofrajBò), pm:0, pmo:0});
   S.current.phases[d].items.push({id:nid(), d:'Poto Etè (Sipò Eskalye)', u:'pyès', q:ec.nSipò, pm:0, pmo:0, tip:'lokasyon'});
   logCalcEntry('eskalye','Eskalye',d,[
     ['Kalite eskalye', tipLabel],
@@ -6587,8 +6627,8 @@ function applyMir(){ if(blockIfReadOnly()) return;
   var d=calcState.destMir; S.active=d;
   var mc = computeMir();
   var label = 'Mi Soutènman ('+fmt(mc.longeM)+'×'+fmt(mc.woteM)+' m) — kalkile';
-  S.current.phases[d].items.push({id:nid(), d:label, u:'m³', q:mc.volTotal, pm:0, pmo:0});
-  S.current.phases[d].items.push({id:nid(), d:'Siman pou Mi Soutènman ('+fmt(mc.cimentSak)+' sak)', u:'sak', q:mc.cimentSak, pm:0, pmo:0});
+  S.current.phases[d].items.push({id:nid(), d:label, u:'m³', q:r2(mc.volTotal), pm:0, pmo:0});
+  pushMateryoBeton(d,'Mi Soutènman',{sak:mc.cimentSak, sab:mc.sab, gravye:mc.gravye, dlo:mc.dlo});
   var rows = [
     ['Dimansyon', fmt(mc.longeM)+' m × '+fmt(mc.woteM)+' m'],
     ['Epesè baz/tèt', fmt(calcState.mirEpesèBaz)+'/'+fmt(calcState.mirEpesèTèt)+' cm'],
@@ -6598,7 +6638,7 @@ function applyMir(){ if(blockIfReadOnly()) return;
     [t('calc_gravye'), fmt(mc.gravye)+' m³']
   ];
   if(mc.feOn){
-    S.current.phases[d].items.push({id:nid(), d:'Fè '+calcState.mirFeDyamet+' (Mi Soutènman)', u:'pyès', q:mc.barsNeeded, pm:0, pmo:0});
+    S.current.phases[d].items.push({id:nid(), d:'Fè '+calcState.mirFeDyamet+' (Mi Soutènman)', u:'bar', q:mc.barsNeeded, pm:0, pmo:0});
     rows.push(['Fè vètikal', fmt(mc.nBar)+' pozisyon, '+fmt(mc.longèParBar)+' m/bar']);
     rows.push(['Bar komèsyal nesesè', fmt(mc.barsNeeded)]);
     rows.push(['Pwa fè total', fmt(mc.weightLb)+' lbs']);
@@ -6610,8 +6650,8 @@ function applyFosSeptik(){ if(blockIfReadOnly()) return;
   var d=calcState.destFs; S.active=d;
   var fc = computeFosSeptik();
   var label = 'Fòs Septik ('+fmt(fc.longeM)+'×'+fmt(fc.lajeM)+'×'+fmt(fc.woteM)+' m) — kalkile';
-  S.current.phases[d].items.push({id:nid(), d:label, u:'m³', q:fc.volReyèl, pm:0, pmo:0});
-  S.current.phases[d].items.push({id:nid(), d:'Siman pou Dal Fòs Septik ('+fmt(fc.cimentSak)+' sak)', u:'sak', q:fc.cimentSak, pm:0, pmo:0});
+  S.current.phases[d].items.push({id:nid(), d:label, u:'m³', q:r2(fc.volReyèl), pm:0, pmo:0});
+  pushMateryoBeton(d,'Dal Fòs Septik',{sak:fc.cimentSak, sab:fc.sab, gravye:fc.gravye, dlo:fc.dlo});
   var rows = [
     ['Kantite moun', fmt(fc.moun)],
     ['Kapasite rekòmande', fmt(fc.kapasiteRekòmandeL)+' L ('+fmt(fc.kapasiteRekòmandeM3)+' m³)'],
@@ -6624,6 +6664,10 @@ function applyFosSeptik(){ if(blockIfReadOnly()) return;
   ];
   if(fc.miOn){
     S.current.phases[d].items.push({id:nid(), d:'Blòk pou Mi Fòs Septik', u:'pyès', q:fc.blokKantite, pm:0, pmo:0});
+    if(fc.mort.m3>0){
+      S.current.phases[d].items.push({id:nid(), d:'Siman ('+(Number(calcState.sakKg)||45)+'kg/sak) — Mòtye Mi Fòs Septik', u:'sak', q:fc.mort.sak, pm:0, pmo:0});
+      S.current.phases[d].items.push({id:nid(), d:'Sab — Mòtye Mi Fòs Septik', u:'m³', q:r2(fc.mort.sab), pm:0, pmo:0});
+    }
     rows.push(['Sifas mi', fmt(fc.aireMi)+' m²']);
     rows.push(['Blòk nesesè', fmt(fc.blokKantite)]);
   }
